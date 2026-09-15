@@ -6343,4 +6343,201 @@ Skibidi.vstack      = Skibidi.CreateVStack
 Skibidi.video       = Skibidi.CreateVideo
 Skibidi.viewport    = Skibidi.CreateViewport
 
+
+-- ============================================================
+--  ADDQUICKMENU - Mini UI flottante par composant
+-- ============================================================
+
+function Skibidi.AddQuickMenu(targetFrame, Options)
+    if not targetFrame or not Options then return nil end
+    local panel = Options.Panel
+    if not panel or not panel.Gui then return nil end
+
+    local Bar = Instance.new("TextButton")
+    Bar.Name                   = "SkibidiQuickBar"
+    Bar.Size                   = UDim2.new(0, 6, 1, -8)
+    Bar.Position               = UDim2.new(1, -9, 0, 4)
+    Bar.BackgroundColor3       = Theme.AccentDim
+    Bar.BackgroundTransparency = 0.35
+    Bar.BorderSizePixel        = 0
+    Bar.Text                   = ""
+    Bar.AutoButtonColor        = false
+    Bar.ZIndex                 = 5
+    Bar.Parent                 = targetFrame
+
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(1, 0)
+    bc.Parent       = Bar
+
+    local Mini = Instance.new("Frame")
+    Mini.Name              = "SkibidiQuickMenu"
+    Mini.Size              = UDim2.new(0, 240, 0, 0)
+    Mini.AutomaticSize     = Enum.AutomaticSize.Y
+    Mini.Position          = UDim2.new(1, 12, 0, 0)
+    Mini.BackgroundColor3  = Theme.Bg1
+    Mini.BorderSizePixel   = 0
+    Mini.Visible           = false
+    Mini.ZIndex            = 50
+    Mini.Parent            = targetFrame
+
+    local mc = Instance.new("UICorner")
+    mc.CornerRadius = UDim.new(0, 8)
+    mc.Parent       = Mini
+
+    local ms = Instance.new("UIStroke")
+    ms.Color        = Theme.Accent
+    ms.Thickness    = 1
+    ms.Transparency = 0.2
+    ms.Parent       = Mini
+
+    local mp = Instance.new("UIPadding")
+    mp.PaddingLeft   = UDim.new(0, 8)
+    mp.PaddingRight  = UDim.new(0, 8)
+    mp.PaddingTop    = UDim.new(0, 8)
+    mp.PaddingBottom = UDim.new(0, 8)
+    mp.Parent        = Mini
+
+    local ml = Instance.new("UIListLayout")
+    ml.Padding   = UDim.new(0, 6)
+    ml.SortOrder = Enum.SortOrder.LayoutOrder
+    ml.Parent    = Mini
+
+    local TitleLbl = Instance.new("TextLabel")
+    TitleLbl.Size                   = UDim2.new(1, 0, 0, 18)
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Font                   = Theme.FontBold
+    TitleLbl.TextSize               = Theme.SmallSize
+    TitleLbl.TextColor3             = Theme.Accent
+    TitleLbl.TextXAlignment         = Enum.TextXAlignment.Left
+    TitleLbl.Text                   = Options.Title or "Quick Menu"
+    TitleLbl.LayoutOrder            = 0
+    TitleLbl.Parent                 = Mini
+
+    local rowOrder = 1
+    for _, row in ipairs(Options.Rows or {}) do
+        if row.Type == "Button" then
+            local b = Instance.new("TextButton")
+            b.Size             = UDim2.new(1, 0, 0, 26)
+            b.BackgroundColor3 = Theme.Bg2
+            b.BorderSizePixel  = 0
+            b.Font             = Theme.FontMedium
+            b.TextSize         = Theme.SmallSize
+            b.TextColor3       = Theme.TextPrimary
+            b.Text             = row.Text or "Button"
+            b.AutoButtonColor  = false
+            b.LayoutOrder      = rowOrder
+            b.Parent           = Mini
+            rowOrder = rowOrder + 1
+
+            local cc = Instance.new("UICorner")
+            cc.CornerRadius = UDim.new(0, 6)
+            cc.Parent       = b
+
+            b.MouseEnter:Connect(function() b.BackgroundColor3 = Theme.Hover end)
+            b.MouseLeave:Connect(function() b.BackgroundColor3 = Theme.Bg2 end)
+            b.MouseButton1Click:Connect(function()
+                if row.OnClick then pcall(row.OnClick) end
+            end)
+
+        elseif row.Type == "Toggle" then
+            local Row = Instance.new("Frame")
+            Row.Size             = UDim2.new(1, 0, 0, 26)
+            Row.BackgroundColor3 = Theme.Bg2
+            Row.BorderSizePixel  = 0
+            Row.LayoutOrder      = rowOrder
+            Row.Parent           = Mini
+            rowOrder = rowOrder + 1
+
+            local rc = Instance.new("UICorner")
+            rc.CornerRadius = UDim.new(0, 6)
+            rc.Parent       = Row
+
+            local L = Instance.new("TextLabel")
+            L.Size                   = UDim2.new(1, -50, 1, 0)
+            L.Position               = UDim2.new(0, 10, 0, 0)
+            L.BackgroundTransparency = 1
+            L.Font                   = Theme.FontRegular
+            L.TextSize               = Theme.SmallSize
+            L.TextColor3             = Theme.TextPrimary
+            L.TextXAlignment         = Enum.TextXAlignment.Left
+            L.Text                   = row.Label or "Toggle"
+            L.Parent                 = Row
+
+            local Track = Instance.new("Frame")
+            Track.Size             = UDim2.new(0, 34, 0, 16)
+            Track.Position         = UDim2.new(1, -44, 0.5, -8)
+            Track.BackgroundColor3 = row.Default and Theme.ToggleOn or Theme.ToggleOff
+            Track.BorderSizePixel  = 0
+            Track.Parent           = Row
+
+            local tc = Instance.new("UICorner")
+            tc.CornerRadius = UDim.new(1, 0)
+            tc.Parent       = Track
+
+            local Knob = Instance.new("Frame")
+            Knob.Size             = UDim2.new(0, 12, 0, 12)
+            Knob.Position         = row.Default
+                and UDim2.new(0, 34 - 12 - 2, 0.5, -6)
+                or  UDim2.new(0, 2, 0.5, -6)
+            Knob.BackgroundColor3 = Theme.Knob
+            Knob.BorderSizePixel  = 0
+            Knob.Parent           = Track
+
+            local kc = Instance.new("UICorner")
+            kc.CornerRadius = UDim.new(1, 0)
+            kc.Parent       = Knob
+
+            local state = row.Default == true
+
+            local Click = Instance.new("TextButton")
+            Click.Size                   = UDim2.new(1, 0, 1, 0)
+            Click.BackgroundTransparency = 1
+            Click.Text                   = ""
+            Click.Parent                 = Row
+
+            Click.MouseButton1Click:Connect(function()
+                state = not state
+                Track.BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff
+                Knob.Position = state
+                    and UDim2.new(0, 34 - 12 - 2, 0.5, -6)
+                    or  UDim2.new(0, 2, 0.5, -6)
+                if row.OnChanged then pcall(row.OnChanged, state) end
+            end)
+
+        elseif row.Type == "Label" then
+            local L = Instance.new("TextLabel")
+            L.Size                   = UDim2.new(1, 0, 0, 0)
+            L.AutomaticSize          = Enum.AutomaticSize.Y
+            L.BackgroundTransparency = 1
+            L.Font                   = Theme.FontRegular
+            L.TextSize               = Theme.SmallSize
+            L.TextColor3             = Theme.TextMuted
+            L.TextWrapped            = true
+            L.TextXAlignment         = Enum.TextXAlignment.Left
+            L.Text                   = row.Text or ""
+            L.LayoutOrder            = rowOrder
+            L.Parent                 = Mini
+            rowOrder = rowOrder + 1
+        end
+    end
+
+    local open = false
+    local function setOpen(v)
+        open = v
+        Mini.Visible = v
+        Bar.BackgroundColor3 = v and Theme.Accent or Theme.AccentDim
+        Bar.BackgroundTransparency = v and 0 or 0.35
+    end
+
+    Bar.MouseButton1Click:Connect(function() setOpen(not open) end)
+
+    return {
+        Bar     = Bar,
+        Frame   = Mini,
+        SetOpen = setOpen,
+        IsOpen  = function() return open end,
+    }
+end
+
+Skibidi.quickmenu = Skibidi.AddQuickMenu
 return Skibidi
