@@ -28,38 +28,31 @@ local PlayerGui        = LocalPlayer:WaitForChild("PlayerGui")
 --   Skibidi.Theme.Accent = Color3.fromRGB(120, 80, 220)
 -- ============================================================
 local Theme = {
-	-- Surfaces
-	Bg0              = Color3.fromRGB(12,  12,  12),
-	Bg1              = Color3.fromRGB(18,  18,  18),
-	Bg2              = Color3.fromRGB(26,  26,  26),
-	Bg3              = Color3.fromRGB(20,  19,  15),
+	Bg0              = Color3.fromRGB(0, 0, 0),
+	Bg1              = Color3.fromRGB(10, 10, 10),
+	Bg2              = Color3.fromRGB(20, 20, 20),
+	Bg3              = Color3.fromRGB(14, 14, 14),
 
-	-- Accent  (gold default — swap to any Color3)
-	Accent           = Color3.fromRGB(220, 160,  60),
-	AccentDim        = Color3.fromRGB(100,  72,  28),
-	AccentSec        = Color3.fromRGB(255, 200,  90),
+	Accent           = Color3.fromRGB(255, 255, 255),
+	AccentDim        = Color3.fromRGB(80, 80, 80),
+	AccentSec        = Color3.fromRGB(240, 240, 240),
 
-	-- Toggle
-	ToggleOff        = Color3.fromRGB(38,  34,  26),
-	ToggleOn         = Color3.fromRGB(180, 120,  40),
-	Knob             = Color3.fromRGB(255, 220, 140),
+	ToggleOff        = Color3.fromRGB(40, 40, 40),
+	ToggleOn         = Color3.fromRGB(200, 200, 200),
+	Knob             = Color3.fromRGB(255, 255, 255),
 
-	-- Interaction
-	Hover            = Color3.fromRGB(32,  30,  24),
+	Hover            = Color3.fromRGB(35, 35, 35),
 	ToggleW          = 40,
 	ToggleH          = 20,
 	KnobSz           = 16,
 
-	-- Text
-	TextPrimary      = Color3.fromRGB(235, 215, 170),
-	TextMuted        = Color3.fromRGB(100,  85,  60),
-	ActiveTabText    = Color3.fromRGB(255, 255, 225),
+	TextPrimary      = Color3.fromRGB(240, 240, 240),
+	TextMuted        = Color3.fromRGB(120, 120, 120),
+	ActiveTabText    = Color3.fromRGB(255, 255, 255),
 
-	-- Input
-	InputBg          = Color3.fromRGB(14,  13,  10),
+	InputBg          = Color3.fromRGB(15, 15, 15),
 
-	-- Sizing
-	HeaderHeight     = 36,
+	HeaderHeight     = 38,
 	TabHeight        = 37,
 	RowHeight        = 34,
 	CornerRadius     = 10,
@@ -70,49 +63,37 @@ local Theme = {
 	FontBold         = Enum.Font.GothamBlack,
 	FontMedium       = Enum.Font.GothamBold,
 	FontRegular      = Enum.Font.Gotham,
-	-- Gotham/GothamBold/GothamBlack only cover a limited (mostly Latin)
-	-- glyph set. Arrows, chevrons, and checkmarks fall outside that set
-	-- and render as tofu boxes. SourceSansBold has full coverage for
-	-- these symbols, so it's used anywhere a glyph "icon" is drawn.
 	FontIcon         = Enum.Font.SourceSansBold,
 	TitleSize        = 14,
 	BodySize         = 13,
 	SmallSize        = 12,
 	CaptionSize      = 11,
 
-	-- ── Semantic colours (notifications, badges, status dots) ──
-	Success          = Color3.fromRGB( 70, 200, 120),
-	Warning          = Color3.fromRGB(240, 180,  60),
-	Danger           = Color3.fromRGB(230,  75,  75),
-	Info             = Color3.fromRGB( 80, 160, 240),
+	Success          = Color3.fromRGB(255, 255, 255),
+	Warning          = Color3.fromRGB(200, 200, 200),
+	Danger           = Color3.fromRGB(255, 80, 80),
+	Info             = Color3.fromRGB(220, 220, 220),
 
-	-- ── Decoration switches ────────────────────────────────────
-	-- Every one of these can be turned off individually if a game's
-	-- performance budget is tight; nothing else in the library depends
-	-- on them being enabled.
-	Glow             = true,   -- soft accent bloom behind panels/controls
-	GlowStrength     = 0.72,   -- transparency of the bloom (0 = solid, 1 = off)
-	AnimatedBorder   = true,   -- slowly rotating gradient on panel strokes
-	BorderSpeed      = 22,     -- degrees per second for the above
-	Ripple           = true,   -- click ripple on buttons/rows
-	Shine            = true,   -- diagonal light sweep across hovered buttons
-	Grain            = true,   -- faint texture over large surfaces
-	GrainStrength    = 0.965,  -- ImageTransparency of the texture layer
-	Blur             = false,  -- global 3D blur while any panel is open
-	Gloss            = true,   -- vertical light gradient over cards and rows
-	LitEdge          = true,   -- outlines that catch light along their top edge
-	StrokeAlpha      = 0.34,   -- resting transparency of those outlines
-	Stagger          = true,   -- staggered pop-in as rows are built
-	Elevation        = 0.38,   -- panel drop-shadow strength (0 = pitch black)
-	Flow             = true,   -- travelling shimmer across progress fills
-	FlowSpeed        = 0.55,   -- gradient offsets per second for the above
+	Glow             = true,
+	GlowStrength     = 0.65,
+	AnimatedBorder   = true,
+	BorderSpeed      = 40,
+	Ripple           = true,
+	Shine            = true,
+	Grain            = true,
+	GrainStrength    = 0.94,
+	Blur             = false,
+	Gloss            = true,
+	LitEdge          = true,
+	StrokeAlpha      = 0.28,
+	Stagger          = true,
+	Elevation        = 0.30,
+	Flow             = true,
+	FlowSpeed        = 0.85,
 
-	-- Gradient endpoints used for accent fills (slider fill, active tab,
-	-- progress bars). Left nil = derived automatically from Accent.
 	AccentGrad1      = nil,
 	AccentGrad2      = nil,
 
-	-- Asset ids (swap if your executor blocks these)
 	ShadowAsset      = "rbxassetid://6014261993",
 	GlowAsset        = "rbxassetid://5028857084",
 	GrainAsset       = "rbxassetid://9968344227",
@@ -131,85 +112,15 @@ Skibidi.Theme = Theme
 -- built with.
 -- ============================================================
 local Presets = {
-	gold = {
-		Bg0 = Color3.fromRGB(12,12,12), Bg1 = Color3.fromRGB(18,18,18),
-		Bg2 = Color3.fromRGB(26,26,26), Bg3 = Color3.fromRGB(20,19,15),
-		Accent = Color3.fromRGB(220,160,60), AccentDim = Color3.fromRGB(100,72,28),
-		AccentSec = Color3.fromRGB(255,200,90), ToggleOff = Color3.fromRGB(38,34,26),
-		ToggleOn = Color3.fromRGB(180,120,40), Knob = Color3.fromRGB(255,220,140),
-		Hover = Color3.fromRGB(32,30,24), TextPrimary = Color3.fromRGB(235,215,170),
-		TextMuted = Color3.fromRGB(100,85,60), ActiveTabText = Color3.fromRGB(255,255,225),
-		InputBg = Color3.fromRGB(14,13,10),
-	},
-	midnight = {
-		Bg0 = Color3.fromRGB(10,11,16), Bg1 = Color3.fromRGB(16,18,26),
-		Bg2 = Color3.fromRGB(24,27,38), Bg3 = Color3.fromRGB(19,21,30),
-		Accent = Color3.fromRGB(96,140,255), AccentDim = Color3.fromRGB(42,58,110),
-		AccentSec = Color3.fromRGB(158,190,255), ToggleOff = Color3.fromRGB(32,36,50),
-		ToggleOn = Color3.fromRGB(66,102,205), Knob = Color3.fromRGB(214,228,255),
-		Hover = Color3.fromRGB(32,37,52), TextPrimary = Color3.fromRGB(214,222,240),
-		TextMuted = Color3.fromRGB(104,116,145), ActiveTabText = Color3.fromRGB(255,255,255),
-		InputBg = Color3.fromRGB(12,14,21),
-	},
-	neon = {
-		Bg0 = Color3.fromRGB(8,10,12), Bg1 = Color3.fromRGB(13,17,20),
-		Bg2 = Color3.fromRGB(20,26,30), Bg3 = Color3.fromRGB(15,20,23),
-		Accent = Color3.fromRGB(60,240,200), AccentDim = Color3.fromRGB(22,96,84),
-		AccentSec = Color3.fromRGB(150,255,232), ToggleOff = Color3.fromRGB(26,34,38),
-		ToggleOn = Color3.fromRGB(38,170,144), Knob = Color3.fromRGB(198,255,242),
-		Hover = Color3.fromRGB(26,36,40), TextPrimary = Color3.fromRGB(214,238,232),
-		TextMuted = Color3.fromRGB(88,124,118), ActiveTabText = Color3.fromRGB(240,255,252),
-		InputBg = Color3.fromRGB(10,14,16),
-	},
-	rose = {
-		Bg0 = Color3.fromRGB(16,10,14), Bg1 = Color3.fromRGB(23,15,20),
-		Bg2 = Color3.fromRGB(33,22,29), Bg3 = Color3.fromRGB(26,17,23),
-		Accent = Color3.fromRGB(244,114,160), AccentDim = Color3.fromRGB(112,45,72),
-		AccentSec = Color3.fromRGB(255,175,205), ToggleOff = Color3.fromRGB(44,29,38),
-		ToggleOn = Color3.fromRGB(190,80,124), Knob = Color3.fromRGB(255,214,230),
-		Hover = Color3.fromRGB(43,29,38), TextPrimary = Color3.fromRGB(240,220,230),
-		TextMuted = Color3.fromRGB(130,96,112), ActiveTabText = Color3.fromRGB(255,240,246),
-		InputBg = Color3.fromRGB(18,11,15),
-	},
-	emerald = {
-		Bg0 = Color3.fromRGB(9,14,11), Bg1 = Color3.fromRGB(14,21,17),
-		Bg2 = Color3.fromRGB(22,32,26), Bg3 = Color3.fromRGB(17,25,20),
-		Accent = Color3.fromRGB(72,205,120), AccentDim = Color3.fromRGB(30,92,54),
-		AccentSec = Color3.fromRGB(146,240,180), ToggleOff = Color3.fromRGB(28,40,32),
-		ToggleOn = Color3.fromRGB(50,150,90), Knob = Color3.fromRGB(200,250,220),
-		Hover = Color3.fromRGB(28,42,33), TextPrimary = Color3.fromRGB(216,236,224),
-		TextMuted = Color3.fromRGB(96,126,108), ActiveTabText = Color3.fromRGB(240,255,246),
-		InputBg = Color3.fromRGB(11,17,13),
-	},
-	crimson = {
-		Bg0 = Color3.fromRGB(15,9,9), Bg1 = Color3.fromRGB(22,14,14),
-		Bg2 = Color3.fromRGB(32,21,21), Bg3 = Color3.fromRGB(25,16,16),
-		Accent = Color3.fromRGB(232,76,76), AccentDim = Color3.fromRGB(110,34,34),
-		AccentSec = Color3.fromRGB(255,146,146), ToggleOff = Color3.fromRGB(44,27,27),
-		ToggleOn = Color3.fromRGB(180,55,55), Knob = Color3.fromRGB(255,208,208),
-		Hover = Color3.fromRGB(43,27,27), TextPrimary = Color3.fromRGB(238,218,218),
-		TextMuted = Color3.fromRGB(128,92,92), ActiveTabText = Color3.fromRGB(255,240,240),
-		InputBg = Color3.fromRGB(17,10,10),
-	},
-	violet = {
-		Bg0 = Color3.fromRGB(13,10,18), Bg1 = Color3.fromRGB(19,15,27),
-		Bg2 = Color3.fromRGB(28,22,40), Bg3 = Color3.fromRGB(22,17,31),
-		Accent = Color3.fromRGB(160,110,250), AccentDim = Color3.fromRGB(70,44,124),
-		AccentSec = Color3.fromRGB(203,172,255), ToggleOff = Color3.fromRGB(38,30,53),
-		ToggleOn = Color3.fromRGB(122,80,200), Knob = Color3.fromRGB(226,210,255),
-		Hover = Color3.fromRGB(38,30,54), TextPrimary = Color3.fromRGB(226,218,242),
-		TextMuted = Color3.fromRGB(116,104,142), ActiveTabText = Color3.fromRGB(248,244,255),
-		InputBg = Color3.fromRGB(15,11,21),
-	},
 	mono = {
-		Bg0 = Color3.fromRGB(10,10,10), Bg1 = Color3.fromRGB(17,17,17),
-		Bg2 = Color3.fromRGB(26,26,26), Bg3 = Color3.fromRGB(21,21,21),
-		Accent = Color3.fromRGB(225,225,225), AccentDim = Color3.fromRGB(80,80,80),
-		AccentSec = Color3.fromRGB(255,255,255), ToggleOff = Color3.fromRGB(38,38,38),
-		ToggleOn = Color3.fromRGB(150,150,150), Knob = Color3.fromRGB(255,255,255),
-		Hover = Color3.fromRGB(32,32,32), TextPrimary = Color3.fromRGB(228,228,228),
-		TextMuted = Color3.fromRGB(115,115,115), ActiveTabText = Color3.fromRGB(255,255,255),
-		InputBg = Color3.fromRGB(12,12,12),
+		Bg0 = Color3.fromRGB(0,0,0), Bg1 = Color3.fromRGB(10,10,10),
+		Bg2 = Color3.fromRGB(20,20,20), Bg3 = Color3.fromRGB(14,14,14),
+		Accent = Color3.fromRGB(255,255,255), AccentDim = Color3.fromRGB(80,80,80),
+		AccentSec = Color3.fromRGB(240,240,240), ToggleOff = Color3.fromRGB(40,40,40),
+		ToggleOn = Color3.fromRGB(200,200,200), Knob = Color3.fromRGB(255,255,255),
+		Hover = Color3.fromRGB(35,35,35), TextPrimary = Color3.fromRGB(240,240,240),
+		TextMuted = Color3.fromRGB(120,120,120), ActiveTabText = Color3.fromRGB(255,255,255),
+		InputBg = Color3.fromRGB(15,15,15),
 	},
 }
 Skibidi.Presets = Presets
@@ -1875,7 +1786,7 @@ function Skibidi.CreatePanel(Options)
 	TitleLabel.TextColor3             = Theme.AccentSec
 	TitleLabel.TextXAlignment         = Enum.TextXAlignment.Left
 	TitleLabel.TextTruncate           = Enum.TextTruncate.AtEnd
-	TitleLabel.Text                   = Options.Title or ""
+	TitleLabel.Text                   = Options.Title or "Nova Key System"
 	TitleLabel.ZIndex                 = 3
 	TitleLabel.Parent                 = Header
 
@@ -1889,7 +1800,7 @@ function Skibidi.CreatePanel(Options)
 	end
 
 	-- Optional subtitle, rendered as a rounded muted pill after the title
-	local plainTitle    = Options.Title    or ""
+	local plainTitle    = Options.Title    or "Nova Key System"
 	local plainSubTitle = Options.SubTitle or ""
 	local SubPill, SubLabel
 
