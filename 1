@@ -1,0 +1,2058 @@
+-- ═══════════════════════════════════════════════
+-- OUTFIT STEALER V3 — Full Edition (FIXED)
+-- ═══════════════════════════════════════════════
+
+-- SERVICES
+local players = game:GetService("Players")
+local rs = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local lp = players.LocalPlayer
+
+if not rs then warn("[OutfitStealer] ReplicatedStorage introuvable"); return end
+
+-- ═══════════════════════════════════════════════
+-- SETTINGS
+-- ═══════════════════════════════════════════════
+local CONFIG_FILE = "OutfitStealer_Config.json"
+
+local Settings = {
+    autoInject          = true,
+    showNotifications   = true,
+    confirmOnSteal      = false,
+    autoCloseAfterSteal = false,
+    copyDiscord         = true,
+    logHistory          = true,
+    autoViewAfterSteal  = false,
+    proximityEnabled    = true,
+    proximityRange      = 12,
+    proximityKey        = "E",
+    proximityHoldTime   = 0.3,
+    proximityShowLabel  = true,
+    proximityHighlight  = true,
+    autoSaveAvatar      = true,
+    spamTPDelay         = 0.5,
+    spamTPRange         = 5,
+}
+
+pcall(function()
+    if isfile and isfile(CONFIG_FILE) and readfile then
+        local ok, data = pcall(function() return HttpService:JSONDecode(readfile(CONFIG_FILE)) end)
+        if ok and type(data) == "table" then
+            for k, v in pairs(data) do
+                if Settings[k] ~= nil then Settings[k] = v end
+            end
+        end
+    end
+end)
+
+local function saveCfg()
+    pcall(function()
+        if writefile then writefile(CONFIG_FILE, HttpService:JSONEncode(Settings)) end
+    end)
+end
+
+-- Historique
+local StealHistory = {}
+pcall(function()
+    if isfile and isfile("OutfitStealer_History.json") and readfile then
+        local ok, data = pcall(function() return HttpService:JSONDecode(readfile("OutfitStealer_History.json")) end)
+        if ok and type(data) == "table" then StealHistory = data end
+    end
+end)
+local function saveHistory()
+    pcall(function()
+        if writefile then writefile("OutfitStealer_History.json", HttpService:JSONEncode(StealHistory)) end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- PALETTE
+-- ═══════════════════════════════════════════════
+local T = {
+    BG = Color3.fromRGB(0,0,0), BG_DEEP = Color3.fromRGB(8,8,8),
+    CARD = Color3.fromRGB(15,15,15), CARD_HOV = Color3.fromRGB(30,30,30),
+    LINE = Color3.fromRGB(255,255,255), TEXT = Color3.fromRGB(255,255,255),
+    TEXT_DIM = Color3.fromRGB(160,160,160), WHITE = Color3.fromRGB(255,255,255),
+    BLACK = Color3.fromRGB(0,0,0), SUCCESS = Color3.fromRGB(100,255,160),
+    DANGER = Color3.fromRGB(255,90,90), WARN = Color3.fromRGB(255,190,60),
+    OFF = Color3.fromRGB(80,80,80),
+}
+
+local GRADIENT_SEQ = ColorSequence.new({
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(60,60,60)),
+    ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255,255,255)),
+    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(180,180,180)),
+    ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255,255,255)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(60,60,60)),
+})
+
+local F = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local animatedGradients = {}
+
+local function registerGradient(grad, speed)
+    table.insert(animatedGradients, {grad = grad, speed = speed or 90})
+end
+
+task.spawn(function()
+    while task.wait(0.05) do
+        for i = #animatedGradients, 1, -1 do
+            local e = animatedGradients[i]
+            if e.grad and e.grad.Parent then
+                e.grad.Rotation = (e.grad.Rotation + e.speed * 0.05) % 360
+            else
+                table.remove(animatedGradients, i)
+            end
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════
+-- UI HELPERS
+-- ═══════════════════════════════════════════════
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 10)
+    c.Parent = parent
+    return c
+end
+
+local function strokeAnim(parent, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Thickness = thickness or 1.5
+    s.Transparency = transparency or 0
+    s.Color = T.LINE
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = parent
+    local g = Instance.new("UIGradient")
+    g.Color = GRADIENT_SEQ
+    g.Rotation = 0
+    g.Parent = s
+    registerGradient(g, 120)
+    return s, g
+end
+
+local function addShimmer(frame, speed)
+    speed = speed or 2.5
+    local shimmer = Instance.new("Frame")
+    shimmer.Size = UDim2.new(0, 60, 1, 0)
+    shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+    shimmer.BackgroundColor3 = T.WHITE
+    shimmer.BackgroundTransparency = 0.92
+    shimmer.BorderSizePixel = 0
+    shimmer.ZIndex = 2
+    shimmer.Parent = frame
+    corner(shimmer, 20)
+    task.spawn(function()
+        while shimmer and shimmer.Parent do
+            shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+            TweenService:Create(shimmer, TweenInfo.new(speed, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1.1, 0, 0, 0)
+            }):Play()
+            task.wait(speed + 1.5)
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- NOTIFICATIONS
+-- ═══════════════════════════════════════════════
+local notifContainer = nil
+local notifOrder = 0
+local notifParentGui = nil
+
+local function showNotif(title, message, notifType)
+    if not Settings.showNotifications then return end
+    if not notifParentGui then return end
+    notifType = notifType or "info"
+    notifOrder = notifOrder + 1
+
+    if not notifContainer or not notifContainer.Parent then
+        notifContainer = Instance.new("Frame")
+        notifContainer.Name = "NotifContainer"
+        notifContainer.Size = UDim2.new(0, 300, 1, -40)
+        notifContainer.Position = UDim2.new(0.5, -150, 0, 20)
+        notifContainer.BackgroundTransparency = 1
+        notifContainer.Parent = notifParentGui
+        local l = Instance.new("UIListLayout")
+        l.Padding = UDim.new(0, 6)
+        l.SortOrder = Enum.SortOrder.LayoutOrder
+        l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        l.VerticalAlignment = Enum.VerticalAlignment.Top
+        l.Parent = notifContainer
+    end
+
+    local accentColor, icon
+    if notifType == "success" then accentColor = T.SUCCESS; icon = "[+]"
+    elseif notifType == "error" then accentColor = T.DANGER; icon = "[X]"
+    elseif notifType == "warn" then accentColor = T.WARN; icon = "[!]"
+    else accentColor = T.WHITE; icon = "[*]" end
+
+    local notif = Instance.new("Frame")
+    notif.Size = UDim2.new(0, 300, 0, 46)
+    notif.BackgroundColor3 = T.BG
+    notif.BackgroundTransparency = 0.05
+    notif.BorderSizePixel = 0
+    notif.Position = UDim2.new(0, 0, 0, -60)
+    notif.LayoutOrder = notifOrder
+    notif.ClipsDescendants = true
+    notif.Parent = notifContainer
+    corner(notif, 10)
+
+    local nStroke = Instance.new("UIStroke")
+    nStroke.Thickness = 1.4
+    nStroke.Transparency = 0.1
+    nStroke.Color = accentColor
+    nStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    nStroke.Parent = notif
+
+    local sGrad = Instance.new("UIGradient")
+    sGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.OFF),
+        ColorSequenceKeypoint.new(0.5, accentColor),
+        ColorSequenceKeypoint.new(1, T.OFF),
+    })
+    sGrad.Rotation = 90
+    sGrad.Parent = nStroke
+    registerGradient(sGrad, 120)
+
+    local leftBar = Instance.new("Frame")
+    leftBar.Size = UDim2.new(0, 2, 1, -12)
+    leftBar.Position = UDim2.new(0, 5, 0, 6)
+    leftBar.BackgroundColor3 = accentColor
+    leftBar.BorderSizePixel = 0
+    leftBar.Parent = notif
+    corner(leftBar, 999)
+
+    local iconLbl = Instance.new("TextLabel")
+    iconLbl.Size = UDim2.new(0, 24, 0, 18)
+    iconLbl.Position = UDim2.new(0, 10, 0.5, -9)
+    iconLbl.BackgroundTransparency = 1
+    iconLbl.Text = icon
+    iconLbl.TextColor3 = accentColor
+    iconLbl.Font = Enum.Font.GothamBlack
+    iconLbl.TextSize = 11
+    iconLbl.Parent = notif
+
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -40, 0, 14)
+    titleLbl.Position = UDim2.new(0, 36, 0, 6)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = T.TEXT
+    titleLbl.Font = Enum.Font.GothamBlack
+    titleLbl.TextSize = 10
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = notif
+
+    local msgLbl = Instance.new("TextLabel")
+    msgLbl.Size = UDim2.new(1, -40, 0, 12)
+    msgLbl.Position = UDim2.new(0, 36, 0, 22)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Text = message
+    msgLbl.TextColor3 = T.TEXT_DIM
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextSize = 9
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLbl.Parent = notif
+
+    local timerBar = Instance.new("Frame")
+    timerBar.Size = UDim2.new(1, -10, 0, 2)
+    timerBar.Position = UDim2.new(0, 5, 1, -3)
+    timerBar.BackgroundColor3 = accentColor
+    timerBar.BorderSizePixel = 0
+    timerBar.Parent = notif
+    corner(timerBar, 999)
+
+    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 0, 0, 0)
+    }):Play()
+    TweenService:Create(timerBar, TweenInfo.new(2.5, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 0, 2)
+    }):Play()
+
+    task.delay(2.5, function()
+        if notif and notif.Parent then
+            TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2.new(0, 0, 0, -60),
+                BackgroundTransparency = 1,
+            }):Play()
+            task.wait(0.35)
+            if notif and notif.Parent then notif:Destroy() end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- RUNTIME (déclaré tôt)
+-- ═══════════════════════════════════════════════
+local Runtime = {
+    gui = nil,
+    statusDetail = nil,
+    buttonCount = nil,
+    promptCount = nil,
+    historyList = nil,
+    avatarsList = nil,
+    avatarCount = nil,
+    spamBtn = nil,
+    injected = {view = false, steal = false},
+    activeConnections = {},
+    activeLoop = nil,
+    statusThread = nil,
+    hiddenMiniBtn = nil,
+    fullyClosed = false,
+    panelHidden = false,
+}
+
+-- ═══════════════════════════════════════════════
+-- FONCTIONS ORIGINALES
+-- ═══════════════════════════════════════════════
+local function uh()
+    local e = rs:FindFirstChild("Events")
+    if e then
+        local r = e:FindFirstChild("CatalogGuiRemote")
+        if r then return r end
+    end
+    local r = rs:FindFirstChild("CatalogGuiRemote")
+    if r then return r end
+    for _, d in ipairs(rs:GetDescendants()) do
+        if d.Name == "CatalogGuiRemote" and (d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then
+            return d
+        end
+    end
+end
+
+local function ins()
+    local e = rs:FindFirstChild("Events")
+    if e then
+        local r = e:FindFirstChild("ClientInspectHumanoidDescription")
+        if r then return r end
+    end
+    local r = rs:FindFirstChild("ClientInspectHumanoidDescription")
+    if r then return r end
+    for _, d in ipairs(rs:GetDescendants()) do
+        if d.Name == "ClientInspectHumanoidDescription" then return d end
+    end
+end
+
+local rem = uh()
+
+local function sf()
+    local g = lp:FindFirstChild("PlayerGui")
+    local v = g and g:FindFirstChild("ViewPlayer")
+    local m = v and v:FindFirstChild("Main") and v.Main:FindFirstChild("Menu")
+    return m and m:FindFirstChild("ScrollingFrame")
+end
+
+local function rgb(c)
+    if typeof(c) ~= "Color3" then return {r = 255, g = 255, b = 255, IsRGBTable = true} end
+    return {r = c.R * 255, g = c.G * 255, b = c.B * 255, IsRGBTable = true}
+end
+
+local function dict(d)
+    local p = {
+        HatAccessory = d.HatAccessory or "", HairAccessory = d.HairAccessory or "",
+        FaceAccessory = d.FaceAccessory or "", BackAccessory = d.BackAccessory or "",
+        FrontAccessory = d.FrontAccessory or "", NeckAccessory = d.NeckAccessory or "",
+        ShouldersAccessory = d.ShouldersAccessory or "", WaistAccessory = d.WaistAccessory or "",
+        Face = d.Face or 0, Head = d.Head or 0, Torso = d.Torso or 0,
+        LeftArm = d.LeftArm or 0, RightArm = d.RightArm or 0,
+        LeftLeg = d.LeftLeg or 0, RightLeg = d.RightLeg or 0,
+        Shirt = d.Shirt or 0, Pants = d.Pants or 0, GraphicTShirt = d.GraphicTShirt or 0,
+        HeadColor = rgb(d.HeadColor), TorsoColor = rgb(d.TorsoColor),
+        LeftArmColor = rgb(d.LeftArmColor), RightArmColor = rgb(d.RightArmColor),
+        LeftLegColor = rgb(d.LeftLegColor), RightLegColor = rgb(d.RightLegColor),
+        HeightScale = d.HeightScale or 1, WidthScale = d.WidthScale or 1,
+        DepthScale = d.DepthScale or 1, HeadScale = d.HeadScale or 1,
+        BodyTypeScale = d.BodyTypeScale or 0, ProportionScale = d.ProportionScale or 0,
+        ClimbAnimation = d.ClimbAnimation or 0, FallAnimation = d.FallAnimation or 0,
+        IdleAnimation = d.IdleAnimation or 0, JumpAnimation = d.JumpAnimation or 0,
+        MoodAnimation = d.MoodAnimation or 0, RunAnimation = d.RunAnimation or 0,
+        SwimAnimation = d.SwimAnimation or 0, WalkAnimation = d.WalkAnimation or 0,
+        MakeupItems = {}, AccessoryRefinements = {}, LayeredAccessories = {},
+        StaticFacialAnimation = false,
+    }
+    pcall(function()
+        local a = d:GetAccessories(true)
+        if type(a) ~= "table" then return end
+        local o = {}
+        for _, x in ipairs(a) do
+            if type(x) == "table" and x.AssetId then
+                o[#o + 1] = {
+                    AssetId = x.AssetId,
+                    AccessoryType = tostring(x.AccessoryType or ""),
+                    Order = x.Order, Puffiness = x.Puffiness,
+                }
+            end
+        end
+        p.LayeredAccessories = o
+    end)
+    return p
+end
+
+local function ser(m, d)
+    if type(m) == "table" and type(m.ToDictionary) == "function" then
+        local ok, t = pcall(m.ToDictionary, m, d)
+        if ok and type(t) == "table" then return t end
+    end
+    return dict(d)
+end
+
+local function descfrom(plr)
+    if not plr then return end
+    local h = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+    if h then
+        local ok, live = pcall(function() return h:GetAppliedDescription() end)
+        if ok and live and live:IsA("HumanoidDescription") then return live, h.RigType end
+    end
+    local ok, d = pcall(function() return players:GetHumanoidDescriptionFromUserId(plr.UserId) end)
+    if ok and d and d:IsA("HumanoidDescription") then return d, Enum.HumanoidRigType.R15 end
+end
+
+local function grab(s)
+    local w = s:FindFirstChild("WearOutfit")
+    local plr, mod, desc, rig
+    if w and getconnections and getupvalues then
+        local c = getconnections(w.Activated)
+        local f = c[1] and c[1].Function
+        if type(f) ~= "function" then
+            c = getconnections(w.MouseButton1Click)
+            f = c[1] and c[1].Function
+        end
+        if type(f) == "function" then
+            local u = getupvalues(f)
+            plr, mod, desc, rig = u[2], u[3], u[4], u[5]
+            for _, v in pairs(u) do
+                if typeof(v) == "Instance" and v:IsA("Player") then plr = v
+                elseif typeof(v) == "Instance" and v:IsA("HumanoidDescription") then desc = v
+                elseif type(v) == "table" and type(v.ToDictionary) == "function" then mod = v
+                elseif typeof(v) == "EnumItem" and v.EnumType == Enum.HumanoidRigType then rig = v end
+            end
+        end
+    end
+    if typeof(plr) ~= "Instance" or not plr:IsA("Player") then return end
+    local live, lrig = descfrom(plr)
+    if live then desc, rig = live, lrig end
+    if typeof(desc) ~= "Instance" or not desc:IsA("HumanoidDescription") then return end
+    return plr, mod, desc, typeof(rig) == "EnumItem" and rig or Enum.HumanoidRigType.R15
+end
+
+local function go(d, m, r)
+    rem = rem or uh()
+    if not rem then return end
+    local p = {
+        Action = "CreateAndWearHumanoidDescription",
+        Properties = ser(m, d),
+        RigType = r or Enum.HumanoidRigType.R15,
+    }
+    pcall(function()
+        if rem:IsA("RemoteFunction") then rem:InvokeServer(p) else rem:FireServer(p) end
+    end)
+end
+
+local function view(plr, d)
+    if not plr or not d then return end
+    local title = "@" .. plr.Name .. "'s Current Outfit"
+    local payload = { HumanoidDescription = d, Title = title }
+    local ev = ins()
+    if ev then
+        pcall(function()
+            if ev:IsA("BindableEvent") then ev:Fire(payload) elseif ev.Fire then ev:Fire(payload) end
+        end)
+        pcall(function()
+            if ev:IsA("BindableEvent") then ev:Fire(d, title) elseif ev.Fire then ev:Fire(d, title) end
+        end)
+        return
+    end
+    local vb = sf() and sf():FindFirstChild("ViewOutfit")
+    if vb and getconnections then
+        for _, c in ipairs(getconnections(vb.Activated)) do
+            pcall(function() if c.Function then c.Function() end end)
+        end
+        for _, c in ipairs(getconnections(vb.MouseButton1Click)) do
+            pcall(function() if c.Function then c.Function() end end)
+        end
+    end
+end
+
+-- ═══════════════════════════════════════════════
+-- SAUVEGARDE AVATAR
+-- ═══════════════════════════════════════════════
+local SavedAvatars = {}
+pcall(function()
+    if isfile and isfile("OutfitStealer_Avatars.json") and readfile then
+        local ok, data = pcall(function() return HttpService:JSONDecode(readfile("OutfitStealer_Avatars.json")) end)
+        if ok and type(data) == "table" then SavedAvatars = data end
+    end
+end)
+
+local function saveAvatarFile()
+    pcall(function()
+        if writefile then writefile("OutfitStealer_Avatars.json", HttpService:JSONEncode(SavedAvatars)) end
+    end)
+end
+
+local function serializeDesc(d, plr)
+    if not d or not d:IsA("HumanoidDescription") then return nil end
+    local data = dict(d)
+    data._meta = {
+        name = plr and plr.Name or "?",
+        userId = plr and plr.UserId or 0,
+        displayName = plr and plr.DisplayName or "?",
+        savedAt = os.time(),
+        savedDate = os.date("%d/%m/%Y %H:%M:%S"),
+    }
+    return data
+end
+
+-- ⭐ FORWARD DECLARATION pour éviter le "attempt to call nil value"
+local updateAvatarCount
+
+local function saveAvatar(targetPlayer, desc)
+    if not Settings.autoSaveAvatar then return end
+    if not targetPlayer or not desc then return end
+    local data = serializeDesc(desc, targetPlayer)
+    if not data then return end
+    local key = tostring(targetPlayer.UserId)
+    local wasExisting = SavedAvatars[key] ~= nil
+    SavedAvatars[key] = data
+    saveAvatarFile()
+    showNotif("Avatar", "@" .. targetPlayer.Name .. (wasExisting and " (maj)" or " sauvegarde"), "success")
+    if updateAvatarCount then updateAvatarCount() end
+end
+
+local function loadAvatar(userId)
+    local data = SavedAvatars[tostring(userId)]
+    if not data then
+        showNotif("Avatar", "Avatar introuvable", "error")
+        return
+    end
+    local newDesc = Instance.new("HumanoidDescription")
+    pcall(function()
+        for k, v in pairs(data) do
+            if k ~= "_meta" and k ~= "LayeredAccessories" and k ~= "MakeupItems" and k ~= "AccessoryRefinements" then
+                pcall(function() newDesc[k] = v end)
+            end
+        end
+    end)
+    local myHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if myHum then
+        myHum:ApplyDescription(newDesc)
+        showNotif("Avatar", "Avatar " .. (data._meta.name or "?") .. " applique", "success")
+    end
+end
+
+-- ⭐ Défini APRÈS la forward declaration
+updateAvatarCount = function()
+    if Runtime.avatarCount then
+        local n = 0
+        for _ in pairs(SavedAvatars) do n = n + 1 end
+        Runtime.avatarCount.Text = "Avatars sauvegardes : " .. n
+    end
+end
+
+-- ═══════════════════════════════════════════════
+-- STEAL FROM PLAYER
+-- ═══════════════════════════════════════════════
+local function stealFromPlayer(targetPlayer)
+    if not targetPlayer or targetPlayer == lp then
+        showNotif("Steal", "Cible invalide", "error")
+        return
+    end
+    local desc, rig = descfrom(targetPlayer)
+    if not desc then
+        showNotif("Steal", "Impossible de recuperer @" .. targetPlayer.Name, "error")
+        return
+    end
+    go(desc, nil, rig)
+    saveAvatar(targetPlayer, desc)
+    local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. targetPlayer.UserId .. "&width=150&height=150&format=png"
+    addToHistory(targetPlayer.Name, targetPlayer.UserId, avatar)
+    showNotif("Steal", "Outfit vole de @" .. targetPlayer.Name, "success")
+    if Settings.autoViewAfterSteal then
+        task.wait(0.3)
+        view(targetPlayer, desc)
+    end
+end
+
+-- ═══════════════════════════════════════════════
+-- HISTORIQUE
+-- ═══════════════════════════════════════════════
+local addToHistory
+addToHistory = function(plrName, plrId, avatarUrl)
+    if not Settings.logHistory then return end
+    table.insert(StealHistory, {
+        name = plrName, userId = plrId, avatar = avatarUrl,
+        timestamp = os.time(), date = os.date("%d/%m/%Y %H:%M"),
+    })
+    if #StealHistory > 50 then table.remove(StealHistory, 1) end
+    saveHistory()
+end
+
+-- ═══════════════════════════════════════════════
+-- PROXIMITY PROMPT SYSTEM (FIX pour joueurs qui rejoignent)
+-- ═══════════════════════════════════════════════
+local PromptSystem = {
+    prompts = {},
+    enabled = Settings.proximityEnabled,
+    charConns = {},
+    playerConns = {},
+    scannerThread = nil,
+}
+
+local function removePromptForPlayer(plr)
+    local data = PromptSystem.prompts[plr]
+    if not data then return end
+    if data.conn then pcall(function() data.conn:Disconnect() end) end
+    if data.prompt and data.prompt.Parent then pcall(function() data.prompt:Destroy() end) end
+    if data.highlight and data.highlight.Parent then pcall(function() data.highlight:Destroy() end) end
+    if data.att and data.att.Parent then pcall(function() data.att:Destroy() end) end
+    PromptSystem.prompts[plr] = nil
+end
+
+local function removeAllPrompts()
+    for plr, _ in pairs(PromptSystem.prompts) do
+        removePromptForPlayer(plr)
+    end
+    for plr, conn in pairs(PromptSystem.charConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    PromptSystem.charConns = {}
+    for _, conn in pairs(PromptSystem.playerConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    PromptSystem.playerConns = {}
+    if PromptSystem.scannerThread then
+        pcall(function() task.cancel(PromptSystem.scannerThread) end)
+        PromptSystem.scannerThread = nil
+    end
+end
+
+local function createPromptForPlayer(plr)
+    if not plr or plr == lp then return end
+    if not PromptSystem.enabled then return end
+
+    removePromptForPlayer(plr)
+
+    local char = plr.Character
+    if not char then
+        local timeout = 0
+        repeat
+            task.wait(0.2)
+            char = plr.Character
+            timeout = timeout + 0.2
+        until char or timeout > 10
+    end
+    if not char then return end
+
+    local torso = char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("Torso")
+        or char:FindFirstChild("LowerTorso")
+        or char:FindFirstChild("HumanoidRootPart")
+    if not torso then
+        local t = 0
+        repeat
+            task.wait(0.2)
+            torso = char:FindFirstChild("UpperTorso")
+                or char:FindFirstChild("Torso")
+                or char:FindFirstChild("LowerTorso")
+                or char:FindFirstChild("HumanoidRootPart")
+            t = t + 0.2
+        until torso or t > 5
+    end
+    if not torso then return end
+
+    if plr.Character ~= char then return end
+
+    local att = Instance.new("Attachment")
+    att.Name = "NovaStealAtt"
+    att.Parent = torso
+
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.Name = "NovaStealPrompt"
+    prompt.ActionText = "STEAL OUTFIT"
+    prompt.ObjectText = "@" .. plr.Name
+    prompt.KeyboardKeyCode = Enum.KeyCode[Settings.proximityKey] or Enum.KeyCode.E
+    prompt.HoldDuration = Settings.proximityHoldTime or 0.3
+    prompt.MaxActivationDistance = Settings.proximityRange or 12
+    prompt.RequiresLineOfSight = false
+    prompt.Style = Enum.ProximityPromptStyle.Default
+    prompt.Parent = att
+
+    local highlight
+    if Settings.proximityHighlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "NovaStealHighlight"
+        highlight.Adornee = char
+        highlight.FillColor = T.WHITE
+        highlight.OutlineColor = T.WHITE
+        highlight.FillTransparency = 0.85
+        highlight.OutlineTransparency = 0.4
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = char
+    end
+
+    local conn = prompt.Triggered:Connect(function(triggerPlayer)
+        if triggerPlayer ~= lp then return end
+        if not PromptSystem.enabled then return end
+        stealFromPlayer(plr)
+    end)
+
+    PromptSystem.prompts[plr] = {
+        prompt = prompt, highlight = highlight, conn = conn,
+        att = att, torso = torso, char = char,
+    }
+end
+
+local function watchPlayer(plr)
+    if not plr or plr == lp then return end
+    if plr.Character then
+        task.spawn(function()
+            createPromptForPlayer(plr)
+        end)
+    end
+    if PromptSystem.charConns[plr] then
+        pcall(function() PromptSystem.charConns[plr]:Disconnect() end)
+    end
+    PromptSystem.charConns[plr] = plr.CharacterAdded:Connect(function(char)
+        task.wait(1.2)
+        if PromptSystem.enabled then
+            createPromptForPlayer(plr)
+        end
+    end)
+end
+
+local function setupPromptSystem()
+    for _, plr in ipairs(players:GetPlayers()) do
+        watchPlayer(plr)
+    end
+
+    table.insert(PromptSystem.playerConns, players.PlayerAdded:Connect(function(plr)
+        watchPlayer(plr)
+        plr.CharacterAdded:Connect(function(char)
+            task.wait(1.5)
+            if PromptSystem.enabled and not PromptSystem.prompts[plr] then
+                createPromptForPlayer(plr)
+            end
+        end)
+    end))
+
+    table.insert(PromptSystem.playerConns, players.PlayerRemoving:Connect(function(plr)
+        removePromptForPlayer(plr)
+        if PromptSystem.charConns[plr] then
+            pcall(function() PromptSystem.charConns[plr]:Disconnect() end)
+            PromptSystem.charConns[plr] = nil
+        end
+    end))
+
+    PromptSystem.scannerThread = task.spawn(function()
+        while PromptSystem.scannerThread do
+            task.wait(1)
+            if not PromptSystem.enabled then continue end
+            for _, plr in ipairs(players:GetPlayers()) do
+                if plr ~= lp then
+                    local data = PromptSystem.prompts[plr]
+                    local needsPrompt = false
+                    if not data then needsPrompt = true
+                    elseif not data.prompt or not data.prompt.Parent then needsPrompt = true
+                    elseif data.char and plr.Character and data.char ~= plr.Character then needsPrompt = true
+                    elseif plr.Character and data.torso and data.torso.Parent ~= plr.Character then needsPrompt = true end
+                    if needsPrompt then createPromptForPlayer(plr) end
+                end
+            end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- MODE SPAM (avec fonction TP directe qui marche)
+-- ═══════════════════════════════════════════════
+local SpamMode = {
+    running = false,
+    copiedPlayers = {},
+    thread = nil,
+}
+
+-- TP simple comme ta fonction originale
+local function tpToPlayer(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return false end
+    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return false end
+
+    local character = lp.Character
+    if not character then return false end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return false end
+
+    pcall(function()
+        rootPart.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+    end)
+
+    task.wait()
+    pcall(function()
+        if rootPart.Parent and targetRoot.Parent then
+            rootPart.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+        end
+    end)
+
+    return true
+end
+
+local function copyAvatarFromPlayer(targetPlayer)
+    if not targetPlayer then return false end
+    local desc, rig = descfrom(targetPlayer)
+    if not desc then
+        showNotif("Copy", "Impossible de recuperer @" .. targetPlayer.Name, "error")
+        return false
+    end
+    go(desc, nil, rig)
+    saveAvatar(targetPlayer, desc)
+    local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. targetPlayer.UserId .. "&width=150&height=150&format=png"
+    addToHistory(targetPlayer.Name, targetPlayer.UserId, avatar)
+    return true
+end
+
+local function startSpamMode()
+    if SpamMode.running then
+        showNotif("Spam", "Deja en cours", "warn")
+        return
+    end
+    SpamMode.running = true
+    SpamMode.copiedPlayers = {}
+    showNotif("Spam Mode", "Demarrage TP + copy...", "success")
+    if Runtime.spamBtn then
+        Runtime.spamBtn.Text = "STOP SPAM"
+        Runtime.spamBtn.BackgroundColor3 = T.DANGER
+        Runtime.spamBtn.TextColor3 = T.WHITE
+    end
+
+    SpamMode.thread = task.spawn(function()
+        local copied = 0
+        local failed = 0
+
+        while SpamMode.running do
+            local toCopy = {}
+            for _, plr in ipairs(players:GetPlayers()) do
+                if plr ~= lp and not SpamMode.copiedPlayers[tostring(plr.UserId)] then
+                    table.insert(toCopy, plr)
+                end
+            end
+
+            if #toCopy == 0 then
+                showNotif("Spam Mode", "Termine - " .. copied .. " copies", "success")
+                break
+            end
+
+            local plr = toCopy[1]
+
+            if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
+                SpamMode.copiedPlayers[tostring(plr.UserId)] = true
+                failed = failed + 1
+                task.wait(0.2)
+                continue
+            end
+
+            local tpOk = tpToPlayer(plr)
+            if not tpOk then
+                SpamMode.copiedPlayers[tostring(plr.UserId)] = true
+                failed = failed + 1
+                task.wait(0.3)
+                continue
+            end
+
+            showNotif("TP", "TP vers @" .. plr.Name, "info")
+
+            -- Reste collé 2 secondes
+            local stayStart = tick()
+            while tick() - stayStart < 2 do
+                if not SpamMode.running then break end
+                if not plr.Character then break end
+
+                local targetRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+                local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                if targetRoot and myRoot then
+                    pcall(function()
+                        myRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+                    end)
+                end
+                task.wait(0.05)
+            end
+
+            if not SpamMode.running then break end
+
+            local ok = copyAvatarFromPlayer(plr)
+            if ok then
+                copied = copied + 1
+                showNotif("Copy", "@" .. plr.Name .. " (" .. copied .. ")", "success")
+            else
+                failed = failed + 1
+            end
+
+            SpamMode.copiedPlayers[tostring(plr.UserId)] = true
+            task.wait(Settings.spamTPDelay)
+        end
+
+        SpamMode.running = false
+        if Runtime.spamBtn then
+            Runtime.spamBtn.Text = "SPAM TP + COPY"
+            Runtime.spamBtn.BackgroundColor3 = T.WHITE
+            Runtime.spamBtn.TextColor3 = T.BLACK
+        end
+    end)
+end
+
+local function stopSpamMode()
+    SpamMode.running = false
+    if SpamMode.thread then
+        pcall(function() task.cancel(SpamMode.thread) end)
+        SpamMode.thread = nil
+    end
+    showNotif("Spam Mode", "Arrete", "warn")
+    if Runtime.spamBtn then
+        Runtime.spamBtn.Text = "SPAM TP + COPY"
+        Runtime.spamBtn.BackgroundColor3 = T.WHITE
+        Runtime.spamBtn.TextColor3 = T.BLACK
+    end
+end
+
+-- ═══════════════════════════════════════════════
+-- INJECTION BOUTONS
+-- ═══════════════════════════════════════════════
+local function ok()
+    local s = sf()
+    if not s then return false end
+    local v = s:FindFirstChild("ViewOutfit")
+    local w = s:FindFirstChild("WearOutfit")
+    if not v or not w then return false end
+
+    for _, n in ipairs({"StealOutfit", "ForceViewOutfit", "CopyAvatarBtn"}) do
+        local o = s:FindFirstChild(n)
+        if o then o:Destroy() end
+    end
+
+    local fv = v:Clone()
+    fv.Name = "ForceViewOutfit"
+    fv.Text = "Force View Outfit"
+    fv.LayoutOrder = v.LayoutOrder + 1
+    fv.Parent = s
+    fv.Activated:Connect(function()
+        local plr, _, d = grab(s)
+        if not plr then return end
+        view(plr, d)
+        showNotif("View Outfit", "Vue de @" .. plr.Name, "info")
+    end)
+
+    local st = w:Clone()
+    st.Name = "StealOutfit"
+    st.Text = "Steal Outfit"
+    st.LayoutOrder = w.LayoutOrder + 1
+    st.Parent = s
+    st.Activated:Connect(function()
+        local plr, m, d, r = grab(s)
+        if plr then
+            go(d, m, r)
+            saveAvatar(plr, d)
+            local avatar = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. plr.UserId .. "&width=150&height=150&format=png"
+            addToHistory(plr.Name, plr.UserId, avatar)
+            showNotif("Steal", "Outfit vole de @" .. plr.Name, "success")
+        end
+    end)
+
+    local ca = w:Clone()
+    ca.Name = "CopyAvatarBtn"
+    ca.Text = "Copy Avatar"
+    ca.LayoutOrder = w.LayoutOrder + 2
+    ca.Parent = s
+    ca.Activated:Connect(function()
+        local plr, m, d, r = grab(s)
+        if plr then
+            go(d, m, r)
+            saveAvatar(plr, d)
+            showNotif("Copy Avatar", "Avatar de @" .. plr.Name .. " sauvegarde", "success")
+        end
+    end)
+
+    Runtime.injected.view = true
+    Runtime.injected.steal = true
+    if Runtime.statusDetail then
+        Runtime.statusDetail.Text = "Boutons injectes"
+        Runtime.statusDetail.TextColor3 = T.SUCCESS
+    end
+    return true
+end
+
+-- ═══════════════════════════════════════════════
+-- SHUTDOWN / RESTORE
+-- ═══════════════════════════════════════════════
+local function shutdownEverything()
+    if Runtime.gui then
+        for _, child in ipairs(Runtime.gui:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("ScrollingFrame") then
+                pcall(function() child.Visible = false end)
+            end
+        end
+    end
+    showNotif("Fermer", "Panel cache. Clique sur X pour rouvrir.", "warn")
+end
+
+local function restoreUI()
+    if Runtime.gui then
+        for _, child in ipairs(Runtime.gui:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("ScrollingFrame") then
+                pcall(function() child.Visible = true end)
+            end
+        end
+        if Runtime.hiddenMiniBtn and Runtime.hiddenMiniBtn.Parent then
+            Runtime.hiddenMiniBtn:Destroy()
+            Runtime.hiddenMiniBtn = nil
+        end
+    end
+    showNotif("Ouvrir", "Panel restaure.", "success")
+end
+
+-- ═══════════════════════════════════════════════
+-- UI PRINCIPALE
+-- ═══════════════════════════════════════════════
+local function createUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "OutfitStealerUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.IgnoreGuiInset = true
+    screenGui.DisplayOrder = 999999
+    screenGui.Parent = lp:WaitForChild("PlayerGui")
+
+    Runtime.gui = screenGui
+    notifParentGui = screenGui
+
+    local panel = Instance.new("Frame")
+    panel.Name = "Panel"
+    panel.Size = UDim2.new(0, 360, 0, 500)
+    panel.Position = UDim2.new(1, 20, 0.5, -250)
+    panel.BackgroundColor3 = T.BG
+    panel.BackgroundTransparency = 0.05
+    panel.BorderSizePixel = 0
+    panel.ClipsDescendants = true
+    panel.Active = true
+    panel.Parent = screenGui
+    corner(panel, 16)
+    strokeAnim(panel, 1.8, 0.2)
+
+    local bgGrad = Instance.new("UIGradient")
+    bgGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20,20,20)),
+        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0,0,0)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20,20,20)),
+    })
+    bgGrad.Rotation = 135
+    bgGrad.Parent = panel
+    registerGradient(bgGrad, 60)
+    addShimmer(panel, 3.5)
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.BackgroundTransparency = 1
+    titleBar.ZIndex = 2
+    titleBar.Parent = panel
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Position = UDim2.new(0, 14, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "* OUTFIT STEALER V3 *"
+    title.TextColor3 = T.WHITE
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBlack
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 3
+    title.Parent = titleBar
+
+    local titleGradText = Instance.new("UIGradient")
+    titleGradText.Color = GRADIENT_SEQ
+    titleGradText.Rotation = 45
+    titleGradText.Parent = title
+    registerGradient(titleGradText, 150)
+
+    local hideBtn = Instance.new("TextButton")
+    hideBtn.Size = UDim2.new(0, 24, 0, 24)
+    hideBtn.Position = UDim2.new(1, -30, 0.5, -12)
+    hideBtn.BackgroundColor3 = T.BG_DEEP
+    hideBtn.BorderSizePixel = 0
+    hideBtn.Text = "−"
+    hideBtn.TextColor3 = T.WHITE
+    hideBtn.TextSize = 15
+    hideBtn.Font = Enum.Font.GothamBold
+    hideBtn.AutoButtonColor = false
+    hideBtn.ZIndex = 4
+    hideBtn.Parent = titleBar
+    corner(hideBtn, 999)
+    local hideStroke = Instance.new("UIStroke")
+    hideStroke.Color = T.LINE
+    hideStroke.Thickness = 1
+    hideStroke.Transparency = 0.4
+    hideStroke.Parent = hideBtn
+
+    local statusCard = Instance.new("Frame")
+    statusCard.Size = UDim2.new(1, -20, 0, 70)
+    statusCard.Position = UDim2.new(0, 10, 0, 50)
+    statusCard.BackgroundColor3 = T.CARD
+    statusCard.BorderSizePixel = 0
+    statusCard.ZIndex = 2
+    statusCard.Parent = panel
+    corner(statusCard, 10)
+    local statusStroke = Instance.new("UIStroke")
+    statusStroke.Color = T.LINE
+    statusStroke.Thickness = 1
+    statusStroke.Transparency = 0.5
+    statusStroke.Parent = statusCard
+
+    local statusDot = Instance.new("Frame")
+    statusDot.Size = UDim2.new(0, 10, 0, 10)
+    statusDot.Position = UDim2.new(0, 12, 0, 14)
+    statusDot.BackgroundColor3 = T.SUCCESS
+    statusDot.BorderSizePixel = 0
+    statusDot.ZIndex = 3
+    statusDot.Parent = statusCard
+    corner(statusDot, 999)
+
+    task.spawn(function()
+        while statusDot and statusDot.Parent do
+            TweenService:Create(statusDot, TweenInfo.new(1, Enum.EasingStyle.Sine), {BackgroundTransparency = 0.5}):Play()
+            task.wait(1)
+            TweenService:Create(statusDot, TweenInfo.new(1, Enum.EasingStyle.Sine), {BackgroundTransparency = 0}):Play()
+            task.wait(1)
+        end
+    end)
+
+    local statusTitle = Instance.new("TextLabel")
+    statusTitle.Size = UDim2.new(1, -40, 0, 18)
+    statusTitle.Position = UDim2.new(0, 30, 0, 8)
+    statusTitle.BackgroundTransparency = 1
+    statusTitle.Text = "SYSTEME ACTIF"
+    statusTitle.TextColor3 = T.WHITE
+    statusTitle.Font = Enum.Font.GothamBlack
+    statusTitle.TextSize = 11
+    statusTitle.TextXAlignment = Enum.TextXAlignment.Left
+    statusTitle.ZIndex = 3
+    statusTitle.Parent = statusCard
+
+    local statusDetail = Instance.new("TextLabel")
+    statusDetail.Size = UDim2.new(1, -40, 0, 14)
+    statusDetail.Position = UDim2.new(0, 30, 0, 28)
+    statusDetail.BackgroundTransparency = 1
+    statusDetail.Text = "Boutons : 0/2 · Prompts : 0"
+    statusDetail.TextColor3 = T.SUCCESS
+    statusDetail.Font = Enum.Font.Gotham
+    statusDetail.TextSize = 10
+    statusDetail.TextXAlignment = Enum.TextXAlignment.Left
+    statusDetail.ZIndex = 3
+    statusDetail.Parent = statusCard
+
+    local promptCount = Instance.new("TextLabel")
+    promptCount.Size = UDim2.new(1, -40, 0, 12)
+    promptCount.Position = UDim2.new(0, 30, 0, 46)
+    promptCount.BackgroundTransparency = 1
+    promptCount.Text = "ProximityPrompt actifs : 0"
+    promptCount.TextColor3 = T.TEXT_DIM
+    promptCount.Font = Enum.Font.GothamBlack
+    promptCount.TextSize = 9
+    promptCount.TextXAlignment = Enum.TextXAlignment.Left
+    promptCount.ZIndex = 3
+    promptCount.Parent = statusCard
+
+    Runtime.statusDetail = statusDetail
+    Runtime.buttonCount = statusTitle
+    Runtime.promptCount = promptCount
+
+    local tabBar = Instance.new("Frame")
+    tabBar.Size = UDim2.new(1, -20, 0, 28)
+    tabBar.Position = UDim2.new(0, 10, 0, 128)
+    tabBar.BackgroundColor3 = T.CARD
+    tabBar.BorderSizePixel = 0
+    tabBar.ZIndex = 3
+    tabBar.Parent = panel
+    corner(tabBar, 8)
+
+    local function makeTab(text, idx, total)
+        local w = 1 / total
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(w, -2, 1, -4)
+        btn.Position = UDim2.new(idx * w, idx == 0 and 2 or 1, 0, 2)
+        btn.BackgroundColor3 = T.BLACK
+        btn.BackgroundTransparency = 0.7
+        btn.BorderSizePixel = 0
+        btn.Text = text
+        btn.TextColor3 = T.TEXT_DIM
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 9
+        btn.AutoButtonColor = false
+        btn.ZIndex = 4
+        btn.Parent = tabBar
+        corner(btn, 6)
+        return btn
+    end
+
+    local tabSettings = makeTab("SET", 0, 5)
+    local tabProx     = makeTab("PROMPT", 1, 5)
+    local tabAvatars  = makeTab("SKINS", 2, 5)
+    local tabSpam     = makeTab("SPAM", 3, 5)
+    local tabHistory  = makeTab("LOGS", 4, 5)
+
+    local pageSettings = Instance.new("ScrollingFrame")
+    pageSettings.Size = UDim2.new(1, -20, 0, 280)
+    pageSettings.Position = UDim2.new(0, 10, 0, 162)
+    pageSettings.BackgroundTransparency = 1
+    pageSettings.BorderSizePixel = 0
+    pageSettings.ScrollBarThickness = 3
+    pageSettings.ScrollBarImageColor3 = T.WHITE
+    pageSettings.CanvasSize = UDim2.new(0, 0, 0, 0)
+    pageSettings.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    pageSettings.ZIndex = 3
+    pageSettings.Parent = panel
+
+    local settingsList = Instance.new("UIListLayout")
+    settingsList.Padding = UDim.new(0, 6)
+    settingsList.SortOrder = Enum.SortOrder.LayoutOrder
+    settingsList.Parent = pageSettings
+
+    local pageProx = Instance.new("ScrollingFrame")
+    pageProx.Size = UDim2.new(1, -20, 0, 280)
+    pageProx.Position = UDim2.new(0, 10, 0, 162)
+    pageProx.BackgroundTransparency = 1
+    pageProx.BorderSizePixel = 0
+    pageProx.ScrollBarThickness = 3
+    pageProx.ScrollBarImageColor3 = T.WHITE
+    pageProx.CanvasSize = UDim2.new(0, 0, 0, 0)
+    pageProx.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    pageProx.Visible = false
+    pageProx.ZIndex = 3
+    pageProx.Parent = panel
+
+    local proxList = Instance.new("UIListLayout")
+    proxList.Padding = UDim.new(0, 5)
+    proxList.SortOrder = Enum.SortOrder.LayoutOrder
+    proxList.Parent = pageProx
+
+    local pageAvatars = Instance.new("ScrollingFrame")
+    pageAvatars.Size = UDim2.new(1, -20, 0, 280)
+    pageAvatars.Position = UDim2.new(0, 10, 0, 162)
+    pageAvatars.BackgroundTransparency = 1
+    pageAvatars.BorderSizePixel = 0
+    pageAvatars.ScrollBarThickness = 3
+    pageAvatars.ScrollBarImageColor3 = T.WHITE
+    pageAvatars.CanvasSize = UDim2.new(0, 0, 0, 0)
+    pageAvatars.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    pageAvatars.Visible = false
+    pageAvatars.ZIndex = 3
+    pageAvatars.Parent = panel
+    Runtime.avatarsList = pageAvatars
+
+    local avatarsList = Instance.new("UIListLayout")
+    avatarsList.Padding = UDim.new(0, 5)
+    avatarsList.SortOrder = Enum.SortOrder.LayoutOrder
+    avatarsList.Parent = pageAvatars
+
+    local pageSpam = Instance.new("Frame")
+    pageSpam.Size = UDim2.new(1, -20, 0, 280)
+    pageSpam.Position = UDim2.new(0, 10, 0, 162)
+    pageSpam.BackgroundTransparency = 1
+    pageSpam.Visible = false
+    pageSpam.ZIndex = 3
+    pageSpam.Parent = panel
+
+    local pageHistory = Instance.new("ScrollingFrame")
+    pageHistory.Size = UDim2.new(1, -20, 0, 280)
+    pageHistory.Position = UDim2.new(0, 10, 0, 162)
+    pageHistory.BackgroundTransparency = 1
+    pageHistory.BorderSizePixel = 0
+    pageHistory.ScrollBarThickness = 3
+    pageHistory.ScrollBarImageColor3 = T.WHITE
+    pageHistory.CanvasSize = UDim2.new(0, 0, 0, 0)
+    pageHistory.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    pageHistory.Visible = false
+    pageHistory.ZIndex = 3
+    pageHistory.Parent = panel
+    Runtime.historyList = pageHistory
+
+    local historyList = Instance.new("UIListLayout")
+    historyList.Padding = UDim.new(0, 5)
+    historyList.SortOrder = Enum.SortOrder.LayoutOrder
+    historyList.Parent = pageHistory
+
+    local function switchTab(tab)
+        pageSettings.Visible = (tab == "settings")
+        pageProx.Visible = (tab == "prompts")
+        pageAvatars.Visible = (tab == "avatars")
+        pageSpam.Visible = (tab == "spam")
+        pageHistory.Visible = (tab == "history")
+
+        local function style(t, active)
+            TweenService:Create(t, F, {
+                BackgroundColor3 = active and T.WHITE or T.BLACK,
+                BackgroundTransparency = active and 0 or 0.7,
+            }):Play()
+            t.TextColor3 = active and T.BLACK or T.TEXT_DIM
+            t.Font = active and Enum.Font.GothamBlack or Enum.Font.Gotham
+        end
+        style(tabSettings, tab == "settings")
+        style(tabProx, tab == "prompts")
+        style(tabAvatars, tab == "avatars")
+        style(tabSpam, tab == "spam")
+        style(tabHistory, tab == "history")
+
+        if tab == "prompts" then refreshPromptList() end
+        if tab == "avatars" then refreshAvatarList() end
+        if tab == "history" then refreshHistory() end
+    end
+
+    tabSettings.MouseButton1Click:Connect(function() switchTab("settings") end)
+    tabProx.MouseButton1Click:Connect(function() switchTab("prompts") end)
+    tabAvatars.MouseButton1Click:Connect(function() switchTab("avatars") end)
+    tabSpam.MouseButton1Click:Connect(function() switchTab("spam") end)
+    tabHistory.MouseButton1Click:Connect(function() switchTab("history") end)
+
+    local order = 0
+    local function nextOrder() order = order + 1 return order end
+
+    local function addToggle(parent, labelTxt, getter, setter)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -4, 0, 32)
+        card.BackgroundColor3 = T.CARD
+        card.BorderSizePixel = 0
+        card.LayoutOrder = nextOrder()
+        card.ZIndex = 4
+        card.Parent = parent
+        corner(card, 8)
+        local cs = Instance.new("UIStroke", card)
+        cs.Color = T.LINE
+        cs.Thickness = 1
+        cs.Transparency = 0.6
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(1, -60, 1, 0)
+        nameLbl.Position = UDim2.new(0, 12, 0, 0)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = labelTxt
+        nameLbl.TextColor3 = T.TEXT
+        nameLbl.Font = Enum.Font.GothamBold
+        nameLbl.TextSize = 11
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.TextYAlignment = Enum.TextYAlignment.Center
+        nameLbl.ZIndex = 5
+        nameLbl.Parent = card
+
+        local pill = Instance.new("Frame")
+        pill.Size = UDim2.new(0, 38, 0, 20)
+        pill.Position = UDim2.new(1, -48, 0.5, -10)
+        pill.BackgroundColor3 = T.OFF
+        pill.BorderSizePixel = 0
+        pill.ZIndex = 5
+        pill.Parent = card
+        corner(pill, 10)
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, 16, 0, 16)
+        knob.Position = UDim2.new(0, 2, 0.5, -8)
+        knob.BackgroundColor3 = T.TEXT_DIM
+        knob.BorderSizePixel = 0
+        knob.ZIndex = 6
+        knob.Parent = pill
+        corner(knob, 999)
+
+        local function paint(anim)
+            local on = getter()
+            local targetPos = on and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+            local targetCol = on and T.WHITE or T.OFF
+            local knobCol = on and T.BLACK or T.TEXT_DIM
+            if anim then
+                TweenService:Create(pill, F, {BackgroundColor3 = targetCol}):Play()
+                TweenService:Create(knob, F, {Position = targetPos, BackgroundColor3 = knobCol}):Play()
+            else
+                pill.BackgroundColor3 = targetCol
+                knob.Position = targetPos
+                knob.BackgroundColor3 = knobCol
+            end
+        end
+        paint(false)
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 1, 0)
+        btn.BackgroundTransparency = 1
+        btn.Text = ""
+        btn.AutoButtonColor = false
+        btn.ZIndex = 7
+        btn.Parent = card
+        btn.MouseButton1Click:Connect(function()
+            setter(not getter())
+            paint(true)
+            saveCfg()
+        end)
+    end
+
+    local function addSlider(parent, labelTxt, min, max, def, onChanged, step)
+        step = step or 1
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -4, 0, 42)
+        card.BackgroundColor3 = T.CARD
+        card.BorderSizePixel = 0
+        card.LayoutOrder = nextOrder()
+        card.ZIndex = 4
+        card.Parent = parent
+        corner(card, 8)
+        local cs = Instance.new("UIStroke", card)
+        cs.Color = T.LINE
+        cs.Thickness = 1
+        cs.Transparency = 0.6
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(1, -60, 0, 14)
+        nameLbl.Position = UDim2.new(0, 12, 0, 4)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = labelTxt
+        nameLbl.TextColor3 = T.TEXT
+        nameLbl.Font = Enum.Font.GothamBold
+        nameLbl.TextSize = 11
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.ZIndex = 5
+        nameLbl.Parent = card
+
+        local valLbl = Instance.new("TextLabel")
+        valLbl.Size = UDim2.new(0, 50, 0, 14)
+        valLbl.Position = UDim2.new(1, -60, 0, 4)
+        valLbl.BackgroundTransparency = 1
+        valLbl.Text = tostring(def)
+        valLbl.TextColor3 = T.WHITE
+        valLbl.Font = Enum.Font.GothamBlack
+        valLbl.TextSize = 11
+        valLbl.TextXAlignment = Enum.TextXAlignment.Right
+        valLbl.ZIndex = 5
+        valLbl.Parent = card
+
+        local track = Instance.new("Frame")
+        track.Size = UDim2.new(1, -24, 0, 6)
+        track.Position = UDim2.new(0, 12, 0, 28)
+        track.BackgroundColor3 = T.BG_DEEP
+        track.BorderSizePixel = 0
+        track.ZIndex = 5
+        track.Parent = card
+        corner(track, 3)
+
+        local frac = (def - min) / math.max(1e-9, max - min)
+        local fill = Instance.new("Frame")
+        fill.Size = UDim2.new(frac, 0, 1, 0)
+        fill.BackgroundColor3 = T.WHITE
+        fill.BorderSizePixel = 0
+        fill.ZIndex = 6
+        fill.Parent = track
+        corner(fill, 3)
+
+        local hit = Instance.new("TextButton")
+        hit.Size = UDim2.new(1, 20, 0, 20)
+        hit.Position = UDim2.new(0, -10, 0.5, -10)
+        hit.BackgroundTransparency = 1
+        hit.Text = ""
+        hit.AutoButtonColor = false
+        hit.ZIndex = 8
+        hit.Parent = track
+
+        local dragging = false
+        local function setFromX(px)
+            local ap = track.AbsolutePosition.X
+            local as = track.AbsoluteSize.X
+            local f = math.clamp((px - ap) / as, 0, 1)
+            local v = min + (max - min) * f
+            v = math.floor(v / step + 0.5) * step
+            fill.Size = UDim2.new((v - min) / math.max(1e-9, max - min), 0, 1, 0)
+            valLbl.Text = tostring(v)
+            if onChanged then pcall(onChanged, v) end
+        end
+
+        hit.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1
+            or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                setFromX(inp.Position.X)
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement
+            or inp.UserInputType == Enum.UserInputType.Touch) then
+                setFromX(inp.Position.X)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1
+            or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+                saveCfg()
+            end
+        end)
+    end
+
+    addToggle(pageSettings, "Auto-Injecter les boutons",
+        function() return Settings.autoInject end,
+        function(v) Settings.autoInject = v; if v then startAutoInject() else stopAutoInject() end end)
+    addToggle(pageSettings, "Notifications",
+        function() return Settings.showNotifications end,
+        function(v) Settings.showNotifications = v end)
+    addToggle(pageSettings, "Historique des steals",
+        function() return Settings.logHistory end,
+        function(v) Settings.logHistory = v end)
+    addToggle(pageSettings, "Copier Discord",
+        function() return Settings.copyDiscord end,
+        function(v) Settings.copyDiscord = v end)
+    addToggle(pageSettings, "Voir apres steal",
+        function() return Settings.autoViewAfterSteal end,
+        function(v) Settings.autoViewAfterSteal = v end)
+
+    addToggle(pageProx, "ProximityPrompt active",
+        function() return Settings.proximityEnabled end,
+        function(v)
+            Settings.proximityEnabled = v
+            PromptSystem.enabled = v
+            if v then
+                refreshAllPrompts()
+                showNotif("Prompt", "Prompt active", "success")
+            else
+                for plr, _ in pairs(PromptSystem.prompts) do removePromptForPlayer(plr) end
+                showNotif("Prompt", "Prompt desactive", "warn")
+            end
+        end)
+    addToggle(pageProx, "Surligner le joueur",
+        function() return Settings.proximityHighlight end,
+        function(v) Settings.proximityHighlight = v; refreshAllPrompts() end)
+    addSlider(pageProx, "Distance (studs)", 5, 30, Settings.proximityRange, function(v)
+        Settings.proximityRange = v
+        for plr, data in pairs(PromptSystem.prompts) do
+            if data.prompt then data.prompt.MaxActivationDistance = v end
+        end
+    end, 1)
+    addSlider(pageProx, "Hold time (sec)", 0, 3, Settings.proximityHoldTime, function(v)
+        Settings.proximityHoldTime = v
+        for plr, data in pairs(PromptSystem.prompts) do
+            if data.prompt then data.prompt.HoldDuration = v end
+        end
+    end, 0.1)
+    addSlider(pageProx, "TP Delay", 0.1, 3, Settings.spamTPDelay, function(v)
+        Settings.spamTPDelay = v
+    end, 0.1)
+    addSlider(pageProx, "TP Distance", 3, 15, Settings.spamTPRange, function(v)
+        Settings.spamTPRange = v
+    end, 1)
+    addToggle(pageProx, "Sauvegarde auto des avatars",
+        function() return Settings.autoSaveAvatar end,
+        function(v)
+            Settings.autoSaveAvatar = v
+            showNotif("Settings", "Save auto : " .. (v and "ON" or "OFF"), v and "success" or "warn")
+        end)
+
+    -- SPAM
+    local spamTitle = Instance.new("TextLabel")
+    spamTitle.Size = UDim2.new(1, -4, 0, 24)
+    spamTitle.Position = UDim2.new(0, 0, 0, 0)
+    spamTitle.BackgroundTransparency = 1
+    spamTitle.Text = "MODE SPAM - TP + COPIE AUTO"
+    spamTitle.TextColor3 = T.WHITE
+    spamTitle.Font = Enum.Font.GothamBlack
+    spamTitle.TextSize = 11
+    spamTitle.TextXAlignment = Enum.TextXAlignment.Left
+    spamTitle.ZIndex = 4
+    spamTitle.Parent = pageSpam
+
+    local spamDesc = Instance.new("TextLabel")
+    spamDesc.Size = UDim2.new(1, -4, 0, 40)
+    spamDesc.Position = UDim2.new(0, 0, 0, 28)
+    spamDesc.BackgroundTransparency = 1
+    spamDesc.Text = "Te TP derriere chaque joueur, copie son avatar et le sauvegarde automatiquement."
+    spamDesc.TextColor3 = T.TEXT_DIM
+    spamDesc.Font = Enum.Font.Gotham
+    spamDesc.TextSize = 10
+    spamDesc.TextWrapped = true
+    spamDesc.TextXAlignment = Enum.TextXAlignment.Left
+    spamDesc.ZIndex = 4
+    spamDesc.Parent = pageSpam
+
+    local spamBtn = Instance.new("TextButton")
+    spamBtn.Size = UDim2.new(1, -4, 0, 50)
+    spamBtn.Position = UDim2.new(0, 0, 0, 80)
+    spamBtn.BackgroundColor3 = T.WHITE
+    spamBtn.BorderSizePixel = 0
+    spamBtn.Text = "SPAM TP + COPY"
+    spamBtn.TextColor3 = T.BLACK
+    spamBtn.Font = Enum.Font.GothamBlack
+    spamBtn.TextSize = 13
+    spamBtn.AutoButtonColor = false
+    spamBtn.ZIndex = 4
+    spamBtn.Parent = pageSpam
+    corner(spamBtn, 10)
+    strokeAnim(spamBtn, 1.5, 0.1)
+    Runtime.spamBtn = spamBtn
+
+    spamBtn.MouseButton1Click:Connect(function()
+        if SpamMode.running then stopSpamMode() else startSpamMode() end
+    end)
+
+    local avatarCountLbl = Instance.new("TextLabel")
+    avatarCountLbl.Size = UDim2.new(1, -4, 0, 24)
+    avatarCountLbl.Position = UDim2.new(0, 0, 0, 140)
+    avatarCountLbl.BackgroundTransparency = 1
+    avatarCountLbl.Text = "Avatars sauvegardes : 0"
+    avatarCountLbl.TextColor3 = T.SUCCESS
+    avatarCountLbl.Font = Enum.Font.GothamBold
+    avatarCountLbl.TextSize = 11
+    avatarCountLbl.TextXAlignment = Enum.TextXAlignment.Left
+    avatarCountLbl.ZIndex = 4
+    avatarCountLbl.Parent = pageSpam
+    Runtime.avatarCount = avatarCountLbl
+
+    local copyNearestBtn = Instance.new("TextButton")
+    copyNearestBtn.Size = UDim2.new(1, -4, 0, 40)
+    copyNearestBtn.Position = UDim2.new(0, 0, 0, 174)
+    copyNearestBtn.BackgroundColor3 = T.CARD
+    copyNearestBtn.BorderSizePixel = 0
+    copyNearestBtn.Text = "Copier l'avatar du joueur le plus proche"
+    copyNearestBtn.TextColor3 = T.WHITE
+    copyNearestBtn.Font = Enum.Font.GothamBold
+    copyNearestBtn.TextSize = 10
+    copyNearestBtn.AutoButtonColor = false
+    copyNearestBtn.ZIndex = 4
+    copyNearestBtn.Parent = pageSpam
+    corner(copyNearestBtn, 8)
+    local cnStroke = Instance.new("UIStroke", copyNearestBtn)
+    cnStroke.Color = T.LINE
+    cnStroke.Thickness = 1
+    cnStroke.Transparency = 0.4
+    cnStroke.Parent = copyNearestBtn
+
+    copyNearestBtn.MouseButton1Click:Connect(function()
+        local myChar = lp.Character
+        if not myChar then return end
+        local myHrp = myChar:FindFirstChild("HumanoidRootPart")
+        if not myHrp then return end
+        local nearest, minDist = nil, math.huge
+        for _, plr in ipairs(players:GetPlayers()) do
+            if plr ~= lp and plr.Character then
+                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local d = (hrp.Position - myHrp.Position).Magnitude
+                    if d < minDist then minDist = d; nearest = plr end
+                end
+            end
+        end
+        if nearest then
+            local desc, rig = descfrom(nearest)
+            if desc then
+                go(desc, nil, rig)
+                saveAvatar(nearest, desc)
+                showNotif("Copy", "Avatar de @" .. nearest.Name .. " copie", "success")
+            end
+        else
+            showNotif("Copy", "Aucun joueur trouve", "error")
+        end
+    end)
+
+    -- Close button (toggle : ferme puis rouvre)
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(1, -20, 0, 32)
+    closeBtn.Position = UDim2.new(0, 10, 1, -42)
+    closeBtn.BackgroundColor3 = T.BG_DEEP
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Text = "X  FERMER"
+    closeBtn.TextColor3 = T.DANGER
+    closeBtn.Font = Enum.Font.GothamBlack
+    closeBtn.TextSize = 11
+    closeBtn.AutoButtonColor = false
+    closeBtn.ZIndex = 4
+    closeBtn.Parent = panel
+    corner(closeBtn, 10)
+    local closeStroke = Instance.new("UIStroke", closeBtn)
+    closeStroke.Color = T.DANGER
+    closeStroke.Thickness = 1.2
+    closeStroke.Transparency = 0.5
+    closeStroke.Parent = closeBtn
+
+    closeBtn.MouseButton1Click:Connect(function()
+        if Runtime.panelHidden then
+            Runtime.panelHidden = false
+            restoreUI()
+            closeBtn.Text = "X  FERMER"
+            closeBtn.TextColor3 = T.DANGER
+            closeStroke.Color = T.DANGER
+        else
+            Runtime.panelHidden = true
+            shutdownEverything()
+            closeBtn.Text = "O  OUVRIR"
+            closeBtn.TextColor3 = T.SUCCESS
+            closeStroke.Color = T.SUCCESS
+        end
+    end)
+
+    -- Drag
+    local dragging, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = panel.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            panel.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    -- Hide button
+    hideBtn.MouseButton1Click:Connect(function()
+        panel.Visible = false
+        if Runtime.hiddenMiniBtn and Runtime.hiddenMiniBtn.Parent then
+            Runtime.hiddenMiniBtn:Destroy()
+        end
+        local miniBtn = Instance.new("TextButton")
+        miniBtn.Size = UDim2.new(0, 40, 0, 40)
+        miniBtn.Position = UDim2.new(0, 20, 0, 20)
+        miniBtn.BackgroundColor3 = T.BG
+        miniBtn.BorderSizePixel = 0
+        miniBtn.Text = "X"
+        miniBtn.TextColor3 = T.DANGER
+        miniBtn.Font = Enum.Font.GothamBlack
+        miniBtn.TextSize = 16
+        miniBtn.AutoButtonColor = false
+        miniBtn.ZIndex = 999999
+        miniBtn.Parent = screenGui
+        corner(miniBtn, 10)
+        local mbStroke = Instance.new("UIStroke", miniBtn)
+        mbStroke.Color = T.DANGER
+        mbStroke.Thickness = 2
+        mbStroke.Transparency = 0.3
+        mbStroke.Parent = miniBtn
+
+        miniBtn.MouseEnter:Connect(function()
+            TweenService:Create(miniBtn, F, {BackgroundColor3 = T.DANGER, TextColor3 = T.WHITE}):Play()
+        end)
+        miniBtn.MouseLeave:Connect(function()
+            TweenService:Create(miniBtn, F, {BackgroundColor3 = T.BG, TextColor3 = T.DANGER}):Play()
+        end)
+
+        miniBtn.MouseButton1Click:Connect(function()
+            panel.Visible = true
+            miniBtn:Destroy()
+            Runtime.hiddenMiniBtn = nil
+        end)
+
+        Runtime.hiddenMiniBtn = miniBtn
+    end)
+
+    task.spawn(function()
+        TweenService:Create(panel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(1, -375, 0.5, -250)
+        }):Play()
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- REFRESH PROMPTS
+-- ═══════════════════════════════════════════════
+function refreshPromptList()
+    if Runtime.fullyClosed then return end
+    if not Runtime.promptCount then return end
+    local count = 0
+    for _ in pairs(PromptSystem.prompts) do count = count + 1 end
+    Runtime.promptCount.Text = "ProximityPrompt actifs : " .. count
+    if Runtime.statusDetail then
+        local total = (Runtime.injected.view and 1 or 0) + (Runtime.injected.steal and 1 or 0)
+        Runtime.statusDetail.Text = "Boutons : " .. total .. "/2 · Prompts : " .. count
+    end
+end
+
+function refreshAllPrompts()
+    if Runtime.fullyClosed then return end
+    for plr, _ in pairs(PromptSystem.prompts) do
+        removePromptForPlayer(plr)
+    end
+    if not PromptSystem.enabled then return end
+    for _, plr in ipairs(players:GetPlayers()) do
+        if plr ~= lp then createPromptForPlayer(plr) end
+    end
+end
+
+-- ═══════════════════════════════════════════════
+-- REFRESH HISTORY
+-- ═══════════════════════════════════════════════
+function refreshHistory()
+    if Runtime.fullyClosed then return end
+    local list = Runtime.historyList
+    if not list then return end
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
+    end
+    if #StealHistory == 0 then
+        local empty = Instance.new("TextLabel")
+        empty.Size = UDim2.new(1, 0, 0, 40)
+        empty.BackgroundTransparency = 1
+        empty.Text = "Aucun steal enregistre"
+        empty.TextColor3 = T.TEXT_DIM
+        empty.Font = Enum.Font.Gotham
+        empty.TextSize = 11
+        empty.Parent = list
+        return
+    end
+    for i = #StealHistory, 1, -1 do
+        local entry = StealHistory[i]
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -4, 0, 50)
+        card.BackgroundColor3 = T.CARD
+        card.BorderSizePixel = 0
+        card.LayoutOrder = (#StealHistory - i + 1)
+        card.Parent = list
+        corner(card, 8)
+        local cs = Instance.new("UIStroke", card)
+        cs.Color = T.LINE
+        cs.Thickness = 1
+        cs.Transparency = 0.6
+
+        local avatar = Instance.new("ImageLabel")
+        avatar.Size = UDim2.new(0, 36, 0, 36)
+        avatar.Position = UDim2.new(0, 7, 0, 7)
+        avatar.BackgroundColor3 = T.BG_DEEP
+        avatar.BorderSizePixel = 0
+        avatar.Image = entry.avatar or ""
+        avatar.Parent = card
+        corner(avatar, 8)
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(1, -55, 0, 16)
+        nameLbl.Position = UDim2.new(0, 50, 0, 8)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = "@" .. (entry.name or "?")
+        nameLbl.TextColor3 = T.WHITE
+        nameLbl.Font = Enum.Font.GothamBold
+        nameLbl.TextSize = 11
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.Parent = card
+
+        local dateLbl = Instance.new("TextLabel")
+        dateLbl.Size = UDim2.new(1, -55, 0, 12)
+        dateLbl.Position = UDim2.new(0, 50, 0, 26)
+        dateLbl.BackgroundTransparency = 1
+        dateLbl.Text = entry.date or "?"
+        dateLbl.TextColor3 = T.TEXT_DIM
+        dateLbl.Font = Enum.Font.Gotham
+        dateLbl.TextSize = 9
+        dateLbl.TextXAlignment = Enum.TextXAlignment.Left
+        dateLbl.Parent = card
+    end
+end
+
+-- ═══════════════════════════════════════════════
+-- REFRESH AVATARS
+-- ═══════════════════════════════════════════════
+function refreshAvatarList()
+    if Runtime.fullyClosed then return end
+    local list = Runtime.avatarsList
+    if not list then return end
+    for _, c in ipairs(list:GetChildren()) do
+        if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
+    end
+
+    local sortedKeys = {}
+    for k, _ in pairs(SavedAvatars) do table.insert(sortedKeys, k) end
+    table.sort(sortedKeys, function(a, b)
+        local da = SavedAvatars[a]._meta and SavedAvatars[a]._meta.savedAt or 0
+        local db = SavedAvatars[b]._meta and SavedAvatars[b]._meta.savedAt or 0
+        return da > db
+    end)
+
+    if #sortedKeys == 0 then
+        local empty = Instance.new("TextLabel")
+        empty.Size = UDim2.new(1, 0, 0, 40)
+        empty.BackgroundTransparency = 1
+        empty.Text = "Aucun avatar sauvegarde"
+        empty.TextColor3 = T.TEXT_DIM
+        empty.Font = Enum.Font.Gotham
+        empty.TextSize = 11
+        empty.Parent = list
+        return
+    end
+
+    for i, key in ipairs(sortedKeys) do
+        local data = SavedAvatars[key]
+        local meta = data._meta or {}
+
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -4, 0, 50)
+        card.BackgroundColor3 = T.CARD
+        card.BorderSizePixel = 0
+        card.LayoutOrder = i
+        card.Parent = list
+        corner(card, 8)
+        local cs = Instance.new("UIStroke", card)
+        cs.Color = T.LINE
+        cs.Thickness = 1
+        cs.Transparency = 0.6
+
+        local avatar = Instance.new("ImageLabel")
+        avatar.Size = UDim2.new(0, 36, 0, 36)
+        avatar.Position = UDim2.new(0, 7, 0, 7)
+        avatar.BackgroundColor3 = T.BG_DEEP
+        avatar.BorderSizePixel = 0
+        avatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(meta.userId or 0) .. "&width=150&height=150&format=png"
+        avatar.Parent = card
+        corner(avatar, 8)
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(1, -120, 0, 16)
+        nameLbl.Position = UDim2.new(0, 50, 0, 8)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = "@" .. (meta.name or "?")
+        nameLbl.TextColor3 = T.WHITE
+        nameLbl.Font = Enum.Font.GothamBold
+        nameLbl.TextSize = 11
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.Parent = card
+
+        local dateLbl = Instance.new("TextLabel")
+        dateLbl.Size = UDim2.new(1, -120, 0, 12)
+        dateLbl.Position = UDim2.new(0, 50, 0, 26)
+        dateLbl.BackgroundTransparency = 1
+        dateLbl.Text = meta.savedDate or "?"
+        dateLbl.TextColor3 = T.TEXT_DIM
+        dateLbl.Font = Enum.Font.Gotham
+        dateLbl.TextSize = 9
+        dateLbl.TextXAlignment = Enum.TextXAlignment.Left
+        dateLbl.Parent = card
+
+        local loadBtn = Instance.new("TextButton")
+        loadBtn.Size = UDim2.new(0, 55, 0, 22)
+        loadBtn.Position = UDim2.new(1, -63, 0, 14)
+        loadBtn.BackgroundColor3 = T.WHITE
+        loadBtn.BorderSizePixel = 0
+        loadBtn.Text = "APPLIQUER"
+        loadBtn.TextColor3 = T.BLACK
+        loadBtn.Font = Enum.Font.GothamBlack
+        loadBtn.TextSize = 8
+        loadBtn.AutoButtonColor = false
+        loadBtn.ZIndex = 5
+        loadBtn.Parent = card
+        corner(loadBtn, 6)
+        loadBtn.MouseButton1Click:Connect(function()
+            loadAvatar(key)
+        end)
+    end
+
+    if updateAvatarCount then updateAvatarCount() end
+end
+
+-- ═══════════════════════════════════════════════
+-- AUTO INJECT
+-- ═══════════════════════════════════════════════
+function startAutoInject()
+    if Runtime.activeLoop then return end
+    if Runtime.fullyClosed then return end
+    Runtime.activeLoop = task.spawn(function()
+        while Runtime.activeLoop do
+            if Settings.autoInject and not Runtime.fullyClosed then ok() end
+            task.wait(2)
+        end
+    end)
+    local conn = lp.PlayerGui.ChildAdded:Connect(function(c)
+        if Runtime.fullyClosed then return end
+        if c.Name == "ViewPlayer" then
+            task.wait(0.3)
+            if Settings.autoInject then ok() end
+        end
+    end)
+    table.insert(Runtime.activeConnections, conn)
+end
+
+function stopAutoInject()
+    if Runtime.activeLoop then
+        pcall(function() task.cancel(Runtime.activeLoop) end)
+        Runtime.activeLoop = nil
+    end
+    for _, c in ipairs(Runtime.activeConnections) do
+        pcall(function() c:Disconnect() end)
+    end
+    Runtime.activeConnections = {}
+    Runtime.injected.view = false
+    Runtime.injected.steal = false
+end
+
+-- ═══════════════════════════════════════════════
+-- START
+-- ═══════════════════════════════════════════════
+createUI()
+setupPromptSystem()
+
+Runtime.statusThread = task.spawn(function()
+    while Runtime.statusThread do
+        task.wait(1)
+        if Runtime.fullyClosed then break end
+        refreshPromptList()
+    end
+end)
+
+task.spawn(function()
+    for _ = 1, 60 do
+        if Runtime.fullyClosed then return end
+        if ok() then break end
+        task.wait(1)
+    end
+end)
+
+if Settings.autoInject then
+    startAutoInject()
+end
+
+-- Notifications Discord
+task.spawn(function()
+    local uid = 1
+    pcall(function() uid = players:GetUserIdFromNameAsync("glushed") end)
+
+    local cb = Instance.new("BindableFunction")
+    cb.OnInvoke = function(btn)
+        if btn == "Discord Profile" then
+            if not Settings.copyDiscord then return end
+            local link = "https://discord.com/users/798692960325730315"
+            if setclipboard then setclipboard(link) elseif toclipboard then toclipboard(link) end
+            showNotif("Discord", "Lien copie", "success")
+        end
+    end
+
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "ProximityPrompt - E = Steal - TP Spam dispo",
+            Text = "Approche-toi d'un joueur et appuie sur E",
+            Duration = 10,
+        })
+    end)
+
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Made by @Planix_DEV",
+            Text = "updated by glushed",
+            Icon = "rbxthumb://type=AvatarHeadShot&id=" .. uid .. "&w=150&h=150",
+            Duration = 8,
+            Button1 = "W SCRIPT GG",
+            Button2 = "im gonna test it",
+            Callback = cb,
+        })
+    end)
+end)
+
+print("[OutfitStealer V3] Full Edition chargee")
