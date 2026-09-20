@@ -1,1 +1,839 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
 
+-- ═══════════════════════════════════════════════
+-- 🎨 STYLE NOVA HUB (thème violet)
+-- ═══════════════════════════════════════════════
+local T = {
+    BG = Color3.fromRGB(10, 8, 20),
+    BG_DEEP = Color3.fromRGB(5, 3, 12),
+    CARD = Color3.fromRGB(22, 16, 40),
+    TEXT = Color3.fromRGB(255, 255, 255),
+    TEXT_DIM = Color3.fromRGB(170, 155, 200),
+    PRIMARY = Color3.fromRGB(180, 130, 255),
+    PRIMARY_DARK = Color3.fromRGB(120, 80, 200),
+    ACCENT = Color3.fromRGB(220, 180, 255),
+    DANGER = Color3.fromRGB(255, 100, 130),
+    WARN = Color3.fromRGB(255, 200, 100),
+    WHITE = Color3.fromRGB(255, 255, 255),
+}
+
+local F = TweenInfo.new(0.15, Enum.EasingStyle.Quad)
+
+-- ═══════════════════════════════════════════════
+-- 🌈 GRADIENT ANIMÉ (style Nova Hub)
+-- ═══════════════════════════════════════════════
+local function makeDripGradient(parent, colors, speed)
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new(colors)
+    grad.Rotation = 0
+    grad.Parent = parent
+    task.spawn(function()
+        while grad and grad.Parent do
+            grad.Rotation = (grad.Rotation + (speed or 2)) % 360
+            task.wait(0.03)
+        end
+    end)
+    return grad
+end
+
+-- ═══════════════════════════════════════════════
+-- 📦 PACKS
+-- ═══════════════════════════════════════════════
+local PACKS = {
+    ["Adidas Sports"] = {
+        WalkAnim = 18537392113, RunAnim = 18537384940, JumpAnim = 18537380791,
+        FallAnim = 18537367238, SwimIdle = 18537387180, Swim = 18537389531,
+        Animation1 = 18537376492, Animation2 = 18537371272, ClimbAnim = 18537363391,
+    },
+    ["Adidas Community"] = {
+        WalkAnim = 122150855457006, RunAnim = 82598234841035, JumpAnim = 75290611992385,
+        FallAnim = 98600215928904, SwimIdle = 109346520324160, Swim = 133308483266208,
+        Animation1 = 122257458498464, Animation2 = 102357151005774, ClimbAnim = 88763136693023,
+    },
+    ["Adidas Aura"] = {
+        WalkAnim = 83842218823011, RunAnim = 118320322718866, JumpAnim = 109996626521204,
+        FallAnim = 95603166884636, SwimIdle = 94922130551805, Swim = 134530128383903,
+        Animation1 = 110211186840347, Animation2 = 114191137265065, ClimbAnim = 97824616490448,
+    },
+    ["Wicked Popular"] = {
+        WalkAnim = 92072849924640, RunAnim = 72301599441680, JumpAnim = 104325245285198,
+        FallAnim = 121152442762481, Animation1 = 118832222982049, ClimbAnim = 131326830509784,
+        SwimIdle = 113199415118199, Swim = 99384245425157, Animation2 = 76049494037641,
+    },
+    ['Wicked "Dancing Through Life"'] = {
+        WalkAnim = 73718308412641, RunAnim = 135515454877967, JumpAnim = 78508480717326,
+        FallAnim = 78147885297412, SwimIdle = 129183123083281, Swim = 110657013921774,
+        ClimbAnim = 129447497744818, Animation1 = 92849173543269, Animation2 = 132238900951109,
+    },
+    ["NFL"] = {
+        WalkAnim = 110358958299415, RunAnim = 117333533048078, JumpAnim = 119846112151352,
+        FallAnim = 129773241321032, SwimIdle = 79090109939093, Swim = 132697394189921,
+        ClimbAnim = 134630013742019, Animation1 = 92080889861410, Animation2 = 74451233229259,
+    },
+    ["Amazon Unboxed"] = {
+        WalkAnim = 90478085024465, RunAnim = 134824450619865, JumpAnim = 121454505477205,
+        FallAnim = 94788218468396, SwimIdle = 129126268464847, Swim = 105962919001086,
+        ClimbAnim = 121145883950231, Animation1 = 98281136301627,
+    },
+    ["No Boundaries"] = {
+        WalkAnim = 18747074203, RunAnim = 18747070484, JumpAnim = 18747069148,
+        FallAnim = 18747062535, SwimIdle = 18747071682, Swim = 18747073181,
+        ClimbAnim = 18747060903, Animation1 = 18747067405, Animation2 = 18747063918,
+    },
+    ["Catwalk Glam"] = {
+        WalkAnim = 109168724482748, RunAnim = 81024476153754, JumpAnim = 116936326516985,
+        FallAnim = 92294537340807, SwimIdle = 98854111361360, Swim = 134591743181628,
+        ClimbAnim = 119377220967554, Animation1 = 133806214992291, Animation2 = 94970088341563,
+    },
+    ["Ninja"] = {
+        Run=658830056, Walk=658831143, Jump=658832070, Fall=658831500,
+        Swim=658832807, Climb=658833139,
+        Idle={658832408, 658833025, 886700035}
+    },
+    ["Cartoony"] = {
+        Run=837009922, Walk=837010234, Jump=837011171, Fall=837010685,
+        Swim=837012509, Climb=837013990,
+        Idle={837011741, 837012139, 886705353}
+    },
+    ["Levitation"] = {
+        Run=619543231, Walk=619544080, Jump=619542888, Fall=619541867,
+        Swim=619543721, Climb=619541458,
+        Idle={619542203, 619542529, 886714779}
+    },
+    ["Stylish"] = {
+        Run=619512153, Walk=619512767, Jump=619511974, Fall=619511417,
+        Swim=619512450, Climb=619509955,
+        Idle={619511648, 619512077, 886723419}
+    },
+    ["Vampire"] = {
+        Run=1113740510, Walk=1113741192, Jump=1113742359, Fall=1113742092,
+        Swim=1113742944, Climb=1113743239,
+        Idle={1113742618, 1113742749, 1113742846}
+    },
+    ["Robot"] = {
+        Run=619522386, Walk=619522849, Jump=619522088, Fall=619521521,
+        Swim=619522642, Climb=619521311,
+        Idle={619521748, 619522115, 886732197}
+    },
+    ["Toy"] = {
+        Run=973766674, Walk=973767371, Jump=973770652, Fall=973768058,
+        Swim=973772659, Climb=973773170,
+        Idle={973771666, 973772286, 1021032377}
+    },
+    ["Bubbly"] = {
+        Run=1018548665, Walk=1018549681, Jump=1018553240, Fall=1018552770,
+        Swim=1018554245, Climb=1018554668,
+        Idle={1018553897, 1018554326, 1021033543}
+    },
+    ["Zombie"] = {
+        Run=619536621, Walk=619537468, Jump=619536283, Fall=619535616,
+        Swim=619537096, Climb=619535091,
+        Idle={619535834, 619536180, 886738015}
+    },
+    ["Knight"] = {
+        Run=657564596, Walk=657552124, Jump=658409194, Fall=657600338,
+        Swim=657560551, SwimIdle=657557095, Climb=658360781,
+        Idle={657595757, 657568135, 885499184}
+    },
+    ["Mage"] = {
+        Run=707861613, Walk=707897309, Jump=707853694, Fall=707829716,
+        Swim=707876443, SwimIdle=707894699,
+        Idle={707742142, 707855907, 885508740}
+    },
+    ["Elder"] = {
+        Run=845386501, Walk=845403856, Jump=845398858, Fall=845397673,
+        Swim=845393478, SwimIdle=845392038, Climb=845392038,
+        Idle={845397899, 845395873, 886754767}
+    },
+    ["Werewolf"] = {
+        Run=1083195517, Walk=1083178339, Jump=1083218792, Fall=1083189019,
+        Swim=1083206911, SwimIdle=1083215563, Climb=1083182000,
+        Idle={1083195517, 1083201596, 1083205823}
+    },
+    ["Astronaut"] = {
+        Run=891636393, Walk=891636393, Jump=891627522, Fall=891617961,
+        Swim=891621366, SwimIdle=891621366, Climb=891609353,
+        Idle={891621366, 891627522, 891636393}
+    },
+    ["Pirate"] = {
+        Run=750783738, Walk=750785693, Jump=750782230, Fall=750780242,
+        Swim=750784182, SwimIdle=750784182, Climb=750779899,
+        Idle={750781874, 750782230, 750783738}
+    },
+    ["Superhero"] = {
+        Run=10921291831, Walk=10921298616, Jump=10921294559, Fall=10921293373,
+        Swim=10921295495, SwimIdle=10921297391, Climb=10921286911,
+        Idle={10921288909, 10921290167, 10921290975}
+    },
+    ["Rthro"] = {
+        Run=2510198475, Walk=2510202577, Jump=2510197830, Fall=2510195892,
+        Swim=2510198263, SwimIdle=2510198263, Climb=2510192778,
+        Idle={2510196951, 2510197830, 2510198475}
+    },
+}
+
+-- ═══════════════════════════════════════════════
+-- UTILS
+-- ═══════════════════════════════════════════════
+local function waitForAnimate(char)
+    for _ = 1, 40 do
+        local a = char:FindFirstChild("Animate")
+        if a and a:FindFirstChild("idle") and a:FindFirstChild("run") and a:FindFirstChild("walk") then
+            return a
+        end
+        task.wait(0.1)
+    end
+    return nil
+end
+
+local function setAnim(animObj, id)
+    if animObj and id then
+        animObj.AnimationId = "rbxassetid://" .. tostring(id)
+    end
+end
+
+local function stopAllTracks(hum)
+    if not hum then return end
+    for _, t in ipairs(hum:GetPlayingAnimationTracks()) do
+        pcall(function() t:Stop(0) end)
+    end
+end
+
+local function ensureAnim(folder, name)
+    if not folder then return nil end
+    local a = folder:FindFirstChild(name)
+    if not a then
+        a = Instance.new("Animation")
+        a.Name = name
+        a.Parent = folder
+    end
+    return a
+end
+
+local function ensureIdleSlots(idleFolder, n)
+    if not idleFolder then return end
+    n = n or 2
+    for i = 1, n do
+        ensureAnim(idleFolder, "Animation" .. i)
+    end
+end
+
+local function pick(pack, ...)
+    for i = 1, select("#", ...) do
+        local k = select(i, ...)
+        local v = pack[k]
+        if v ~= nil then return v end
+    end
+    return nil
+end
+
+-- ═══════════════════════════════════════════════
+-- APPLY PACK
+-- ═══════════════════════════════════════════════
+local ATTR_LAST = "AnimPack_Last"
+local applying = false
+
+local function applyPack(packName)
+    if applying then return false end
+    applying = true
+
+    local pack = PACKS[packName]
+    if not pack then
+        warn("Unknown pack:", packName)
+        applying = false
+        return false
+    end
+
+    local char = player.Character or player.CharacterAdded:Wait()
+    local animate = waitForAnimate(char)
+    if not animate then
+        warn("Animate not found")
+        applying = false
+        return false
+    end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    stopAllTracks(hum)
+
+    local runObj = ensureAnim(animate:FindFirstChild("run"), "RunAnim")
+    local walkObj = ensureAnim(animate:FindFirstChild("walk"), "WalkAnim")
+    local jumpObj = ensureAnim(animate:FindFirstChild("jump"), "JumpAnim")
+    local fallObj = ensureAnim(animate:FindFirstChild("fall"), "FallAnim")
+    local climbObj = ensureAnim(animate:FindFirstChild("climb"), "ClimbAnim")
+    local swimObj = ensureAnim(animate:FindFirstChild("swim"), "Swim")
+    local swimIdleObj = ensureAnim(animate:FindFirstChild("swimidle"), "SwimIdle")
+    local idleFolder = animate:FindFirstChild("idle")
+
+    setAnim(walkObj, pick(pack, "WalkAnim", "Walk"))
+    setAnim(runObj, pick(pack, "RunAnim", "Run"))
+    setAnim(jumpObj, pick(pack, "JumpAnim", "Jump"))
+    setAnim(fallObj, pick(pack, "FallAnim", "Fall"))
+    setAnim(climbObj, pick(pack, "ClimbAnim", "Climb"))
+    setAnim(swimObj, pick(pack, "Swim"))
+    setAnim(swimIdleObj, pick(pack, "SwimIdle") or pick(pack, "Swim"))
+
+    if idleFolder then
+        local a1 = pick(pack, "Animation1")
+        local a2 = pick(pack, "Animation2")
+
+        if a1 or a2 then
+            ensureIdleSlots(idleFolder, 2)
+            local id1 = a1 or a2
+            local id2 = a2 or a1 or id1
+            setAnim(idleFolder:FindFirstChild("Animation1"), id1)
+            setAnim(idleFolder:FindFirstChild("Animation2"), id2)
+        elseif pack.Idle and #pack.Idle > 0 then
+            ensureIdleSlots(idleFolder, math.max(2, #pack.Idle))
+            setAnim(idleFolder:FindFirstChild("Animation1"), pack.Idle[1])
+            setAnim(idleFolder:FindFirstChild("Animation2"), pack.Idle[2] or pack.Idle[1])
+            for i = 3, #pack.Idle do
+                local a = idleFolder:FindFirstChild("Animation" .. i)
+                if a then setAnim(a, pack.Idle[i]) end
+            end
+        end
+    end
+
+    animate.Disabled = true
+    task.wait(0.06)
+    animate.Disabled = false
+
+    if hum then
+        pcall(function()
+            hum:ChangeState(Enum.HumanoidStateType.Landed)
+            task.wait(0.03)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+
+    pcall(function() player:SetAttribute(ATTR_LAST, packName) end)
+    applying = false
+    return true
+end
+
+player.CharacterAdded:Connect(function()
+    task.wait(0.6)
+    local saved = player:GetAttribute(ATTR_LAST)
+    if type(saved) == "string" and saved ~= "" and PACKS[saved] then
+        applyPack(saved)
+    end
+end)
+
+-- ═══════════════════════════════════════════════
+-- 🎨 GUI style NOVA HUB
+-- ═══════════════════════════════════════════════
+local function getParentGui()
+    return player:WaitForChild("PlayerGui")
+end
+
+do
+    local pg = getParentGui()
+    local old = pg:FindFirstChild("AnimPackGUI")
+    if old then old:Destroy() end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AnimPackGUI"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = getParentGui()
+
+-- ═══ PANEL PRINCIPAL (style Nova Hub) ═══
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 380, 0, 340)
+frame.Position = UDim2.new(0.5, -190, 0.5, -170)
+frame.BackgroundColor3 = T.BG
+frame.BackgroundTransparency = 0.05
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.ClipsDescendants = true
+frame.ZIndex = 10
+frame.Parent = gui
+
+makeDripGradient(frame, {
+    ColorSequenceKeypoint.new(0.00, T.CARD),
+    ColorSequenceKeypoint.new(0.25, T.BG),
+    ColorSequenceKeypoint.new(0.50, T.PRIMARY_DARK),
+    ColorSequenceKeypoint.new(0.75, T.BG_DEEP),
+    ColorSequenceKeypoint.new(1.00, T.CARD),
+}, 0.3)
+
+local fc = Instance.new("UICorner"); fc.CornerRadius = UDim.new(0, 16); fc.Parent = frame
+
+local st = Instance.new("UIStroke")
+st.Color = T.PRIMARY
+st.Thickness = 2
+st.Transparency = 0.2
+st.Parent = frame
+
+makeDripGradient(st, {
+    ColorSequenceKeypoint.new(0.00, T.PRIMARY),
+    ColorSequenceKeypoint.new(0.25, T.WHITE),
+    ColorSequenceKeypoint.new(0.50, T.PRIMARY_DARK),
+    ColorSequenceKeypoint.new(0.75, T.ACCENT),
+    ColorSequenceKeypoint.new(1.00, T.PRIMARY),
+}, 2)
+
+-- Glow
+local glow = Instance.new("ImageLabel")
+glow.Size = UDim2.new(1, 60, 1, 60)
+glow.Position = UDim2.new(0, -30, 0, -30)
+glow.BackgroundTransparency = 1
+glow.Image = "rbxassetid://5028857084"
+glow.ImageColor3 = T.PRIMARY
+glow.ImageTransparency = 0.85
+glow.ScaleType = Enum.ScaleType.Slice
+glow.SliceCenter = Rect.new(24, 24, 276, 276)
+glow.ZIndex = 9
+glow.Parent = frame
+
+task.spawn(function()
+    while glow and glow.Parent do
+        TweenService:Create(glow, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {
+            ImageTransparency = 0.7,
+        }):Play()
+        task.wait(1.5)
+        TweenService:Create(glow, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {
+            ImageTransparency = 0.9,
+        }):Play()
+        task.wait(1.5)
+    end
+end)
+
+-- Particles
+local particleContainer = Instance.new("Frame")
+particleContainer.Size = UDim2.new(1, 0, 1, 0)
+particleContainer.BackgroundTransparency = 1
+particleContainer.ClipsDescendants = true
+particleContainer.ZIndex = 10
+particleContainer.Parent = frame
+local pcc = Instance.new("UICorner"); pcc.CornerRadius = UDim.new(0, 16); pcc.Parent = particleContainer
+
+for i = 1, 30 do
+    local p = Instance.new("Frame")
+    p.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
+    p.Position = UDim2.new(math.random(), 0, 1.2, 0)
+    p.BackgroundColor3 = T.PRIMARY
+    p.BackgroundTransparency = math.random() * 0.5 + 0.3
+    p.BorderSizePixel = 0
+    p.ZIndex = 10
+    p.Parent = particleContainer
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = p
+
+    task.spawn(function()
+        while p and p.Parent do
+            local duration = math.random(6, 14)
+            p.Position = UDim2.new(math.random(), 0, 1.2, 0)
+            p.BackgroundTransparency = math.random() * 0.5 + 0.3
+            TweenService:Create(p, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(math.random(), 0, -0.2, 0),
+                BackgroundTransparency = 1,
+            }):Play()
+            task.wait(duration)
+        end
+    end)
+end
+
+-- ═══ DRAG HANDLE (rectangulaire style Nova Hub) ═══
+local dragHandle = Instance.new("Frame")
+dragHandle.Name = "DragHandle"
+dragHandle.Size = UDim2.new(1, 0, 0, 50)
+dragHandle.BackgroundColor3 = T.BG_DEEP
+dragHandle.BackgroundTransparency = 0.15
+dragHandle.BorderSizePixel = 0
+dragHandle.Active = true
+dragHandle.ZIndex = 15
+dragHandle.Parent = frame
+local dhc = Instance.new("UICorner"); dhc.CornerRadius = UDim.new(0, 16); dhc.Parent = dragHandle
+
+makeDripGradient(dragHandle, {
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20, 12, 35)),
+    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(8, 5, 18)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20, 12, 35)),
+}, 0.5)
+
+local dhStroke = Instance.new("UIStroke")
+dhStroke.Color = T.PRIMARY
+dhStroke.Thickness = 1.5
+dhStroke.Transparency = 0.4
+dhStroke.Parent = dragHandle
+
+-- Ligne animée en bas du drag handle
+local dragLine = Instance.new("Frame")
+dragLine.Size = UDim2.new(1, 0, 0, 2)
+dragLine.Position = UDim2.new(0, 0, 1, -2)
+dragLine.BackgroundColor3 = T.PRIMARY
+dragLine.BorderSizePixel = 0
+dragLine.ZIndex = 16
+dragLine.Parent = dragHandle
+
+makeDripGradient(dragLine, {
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 0)),
+    ColorSequenceKeypoint.new(0.50, T.ACCENT),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 0, 0)),
+}, 4)
+
+-- Grip visuel
+local gripContainer = Instance.new("Frame")
+gripContainer.Size = UDim2.new(0, 30, 0, 20)
+gripContainer.Position = UDim2.new(0, 15, 0.5, -10)
+gripContainer.BackgroundTransparency = 1
+gripContainer.ZIndex = 16
+gripContainer.Parent = dragHandle
+
+for i = 1, 3 do
+    local grip = Instance.new("Frame")
+    grip.Size = UDim2.new(1, 0, 0, 2)
+    grip.Position = UDim2.new(0, 0, 0, (i - 1) * 7)
+    grip.BackgroundColor3 = T.PRIMARY
+    grip.BorderSizePixel = 0
+    grip.ZIndex = 16
+    grip.Parent = gripContainer
+end
+
+local titleIcon = Instance.new("TextLabel")
+titleIcon.Size = UDim2.new(0, 40, 1, 0)
+titleIcon.Position = UDim2.new(0, 52, 0, 0)
+titleIcon.BackgroundTransparency = 1
+titleIcon.Text = "A"
+titleIcon.TextColor3 = T.PRIMARY
+titleIcon.TextSize = 20
+titleIcon.Font = Enum.Font.GothamBlack
+titleIcon.TextXAlignment = Enum.TextXAlignment.Left
+titleIcon.ZIndex = 16
+titleIcon.Parent = dragHandle
+
+task.spawn(function()
+    while titleIcon and titleIcon.Parent do
+        TweenService:Create(titleIcon, TweenInfo.new(1, Enum.EasingStyle.Sine), {
+            TextColor3 = T.ACCENT,
+        }):Play()
+        task.wait(1)
+        TweenService:Create(titleIcon, TweenInfo.new(1, Enum.EasingStyle.Sine), {
+            TextColor3 = T.PRIMARY,
+        }):Play()
+        task.wait(1)
+    end
+end)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -180, 1, 0)
+title.Position = UDim2.new(0, 80, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "ANIMATION PACKS"
+title.TextColor3 = T.WHITE
+title.TextSize = 15
+title.Font = Enum.Font.GothamBlack
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 16
+title.Parent = dragHandle
+
+makeDripGradient(title, {
+    ColorSequenceKeypoint.new(0.00, T.WHITE),
+    ColorSequenceKeypoint.new(0.50, T.PRIMARY),
+    ColorSequenceKeypoint.new(1.00, T.WHITE),
+}, 3)
+
+-- MINIMIZE
+local miniBtn = Instance.new("TextButton")
+miniBtn.Size = UDim2.new(0, 28, 0, 28)
+miniBtn.Position = UDim2.new(1, -70, 0.5, -14)
+miniBtn.BackgroundColor3 = T.WARN
+miniBtn.BorderSizePixel = 0
+miniBtn.Text = "−"
+miniBtn.TextColor3 = T.WHITE
+miniBtn.Font = Enum.Font.GothamBold
+miniBtn.TextSize = 18
+miniBtn.AutoButtonColor = false
+miniBtn.ZIndex = 17
+miniBtn.Parent = dragHandle
+local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(0, 6); mbc.Parent = miniBtn
+
+-- CLOSE
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
+closeBtn.BackgroundColor3 = T.DANGER
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "X"
+closeBtn.TextColor3 = T.WHITE
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 13
+closeBtn.AutoButtonColor = false
+closeBtn.ZIndex = 17
+closeBtn.Parent = dragHandle
+local cbc = Instance.new("UICorner"); cbc.CornerRadius = UDim.new(0, 6); cbc.Parent = closeBtn
+
+-- ═══ CURRENT PACK LABEL ═══
+local current = Instance.new("TextLabel")
+current.Size = UDim2.new(1, -28, 0, 22)
+current.Position = UDim2.new(0, 14, 0, 58)
+current.BackgroundTransparency = 1
+current.TextXAlignment = Enum.TextXAlignment.Left
+current.Font = Enum.Font.GothamBold
+current.TextSize = 11
+current.TextColor3 = T.TEXT_DIM
+current.Text = "Current: (none)"
+current.ZIndex = 16
+current.Parent = frame
+
+-- ═══ SEARCH BAR (style Nova Hub) ═══
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(1, -28, 0, 34)
+searchBox.Position = UDim2.new(0, 14, 0, 86)
+searchBox.BackgroundColor3 = T.CARD
+searchBox.BackgroundTransparency = 0.2
+searchBox.TextColor3 = T.TEXT
+searchBox.PlaceholderText = "Search pack..."
+searchBox.PlaceholderColor3 = T.TEXT_DIM
+searchBox.Text = ""
+searchBox.ClearTextOnFocus = false
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 12
+searchBox.BorderSizePixel = 0
+searchBox.ZIndex = 16
+searchBox.Parent = frame
+local sbc = Instance.new("UICorner"); sbc.CornerRadius = UDim.new(0, 10); sbc.Parent = searchBox
+
+local sbStroke = Instance.new("UIStroke")
+sbStroke.Color = T.PRIMARY
+sbStroke.Thickness = 1
+sbStroke.Transparency = 0.4
+sbStroke.Parent = searchBox
+
+searchBox.Focused:Connect(function()
+    TweenService:Create(sbStroke, F, { Transparency = 0, Thickness = 2 }):Play()
+end)
+searchBox.FocusLost:Connect(function()
+    TweenService:Create(sbStroke, F, { Transparency = 0.4, Thickness = 1 }):Play()
+end)
+
+-- ═══ LIST CONTAINER ═══
+local listFrame = Instance.new("Frame")
+listFrame.Size = UDim2.new(1, -28, 1, -140)
+listFrame.Position = UDim2.new(0, 14, 0, 128)
+listFrame.BackgroundColor3 = T.BG_DEEP
+listFrame.BackgroundTransparency = 0.2
+listFrame.BorderSizePixel = 0
+listFrame.ZIndex = 15
+listFrame.Parent = frame
+local lfc = Instance.new("UICorner"); lfc.CornerRadius = UDim.new(0, 12); lfc.Parent = listFrame
+
+local lfStroke = Instance.new("UIStroke")
+lfStroke.Color = T.PRIMARY
+lfStroke.Thickness = 1
+lfStroke.Transparency = 0.6
+lfStroke.Parent = listFrame
+
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -10, 1, -10)
+scroll.Position = UDim2.new(0, 5, 0, 5)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4
+scroll.ScrollBarImageColor3 = T.PRIMARY
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.ZIndex = 16
+scroll.Parent = listFrame
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 6)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = scroll
+
+local pad = Instance.new("UIPadding")
+pad.PaddingTop = UDim.new(0, 6)
+pad.PaddingBottom = UDim.new(0, 6)
+pad.PaddingLeft = UDim.new(0, 6)
+pad.PaddingRight = UDim.new(0, 6)
+pad.Parent = scroll
+
+local function refreshCanvas()
+    task.wait()
+    scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+end
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas)
+
+-- ═══ MINIMIZE ═══
+local minimized = false
+local expandedSize = frame.Size
+local minimizedSize = UDim2.new(expandedSize.X.Scale, expandedSize.X.Offset, 0, 50)
+
+local function setMinimized(on)
+    minimized = on
+    if minimized then
+        frame.Size = minimizedSize
+        miniBtn.Text = "+"
+        current.Visible = false
+        searchBox.Visible = false
+        listFrame.Visible = false
+    else
+        frame.Size = expandedSize
+        miniBtn.Text = "−"
+        current.Visible = true
+        searchBox.Visible = true
+        listFrame.Visible = true
+    end
+end
+
+miniBtn.MouseButton1Click:Connect(function()
+    setMinimized(not minimized)
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- Hide with comma
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.Comma then
+        gui.Enabled = not gui.Enabled
+    end
+end)
+
+-- ═══ DRAG (sur le drag handle) ═══
+local dragging, dragStart, startPos = false, nil, nil
+
+dragHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = Vector2.new(input.Position.X, input.Position.Y)
+        startPos = frame.Position
+        TweenService:Create(st, TweenInfo.new(0.2), { Thickness = 3, Transparency = 0 }):Play()
+        TweenService:Create(dhStroke, TweenInfo.new(0.2), { Thickness = 2.5, Transparency = 0 }):Play()
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                TweenService:Create(st, TweenInfo.new(0.3), { Thickness = 2, Transparency = 0.2 }):Play()
+                TweenService:Create(dhStroke, TweenInfo.new(0.3), { Thickness = 1.5, Transparency = 0.4 }):Play()
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ═══ TRI DES PACKS ═══
+local ADIDAS_TOP_ORDER = { "Adidas Sports", "Adidas Community", "Adidas Aura" }
+local adidasRank = {}
+for i, n in ipairs(ADIDAS_TOP_ORDER) do adidasRank[n] = i end
+
+local allNames = {}
+for name in pairs(PACKS) do table.insert(allNames, name) end
+
+table.sort(allNames, function(a, b)
+    local ra, rb = adidasRank[a], adidasRank[b]
+    if ra and rb then return ra < rb end
+    if ra then return true end
+    if rb then return false end
+    return a:lower() < b:lower()
+end)
+
+local buttonsByName = {}
+
+-- ═══ CRÉATION DES BOUTONS (style Nova Hub) ═══
+local function createButton(name, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = T.CARD
+    btn.BackgroundTransparency = 0.2
+    btn.TextColor3 = T.TEXT
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Text = name
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.AutoButtonColor = false
+    btn.LayoutOrder = order
+    btn.BorderSizePixel = 0
+    btn.ZIndex = 17
+    btn.Parent = scroll
+    local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0, 8); bc.Parent = btn
+
+    local bStroke = Instance.new("UIStroke")
+    bStroke.Color = T.PRIMARY
+    bStroke.Thickness = 1
+    bStroke.Transparency = 0.6
+    bStroke.Parent = btn
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.Parent = btn
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(0, 3, 1, 0)
+    bar.Position = UDim2.new(0, 0, 0, 0)
+    bar.BackgroundColor3 = T.PRIMARY
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 18
+    bar.Parent = btn
+    local barc = Instance.new("UICorner"); barc.CornerRadius = UDim.new(0, 2); barc.Parent = bar
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, F, { BackgroundColor3 = T.PRIMARY_DARK, BackgroundTransparency = 0.4 }):Play()
+        TweenService:Create(bStroke, F, { Transparency = 0, Thickness = 2 }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, F, { BackgroundColor3 = T.CARD, BackgroundTransparency = 0.2 }):Play()
+        TweenService:Create(bStroke, F, { Transparency = 0.6, Thickness = 1 }):Play()
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        local ok = applyPack(name)
+        current.Text = ok and ("Current: " .. name) or ("Current: (failed) " .. name)
+    end)
+
+    buttonsByName[name] = btn
+end
+
+for i, name in ipairs(allNames) do
+    createButton(name, i)
+end
+refreshCanvas()
+
+-- ═══ FILTRE DE RECHERCHE ═══
+local function applyFilter(text)
+    text = (text or ""):lower()
+    for name, btn in pairs(buttonsByName) do
+        btn.Visible = (text == "") or (name:lower():find(text, 1, true) ~= nil)
+    end
+    refreshCanvas()
+end
+
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    applyFilter(searchBox.Text)
+end)
+applyFilter("")
+
+-- ═══ ENTRANCE ANIMATION ═══
+frame.Size = UDim2.new(0, 0, 0, 0)
+frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size = UDim2.new(0, 380, 0, 340),
+    Position = UDim2.new(0.5, -190, 0.5, -170),
+}):Play()
+
+-- ═══ AUTO-LOAD DERNIER PACK ═══
+task.defer(function()
+    local saved = player:GetAttribute(ATTR_LAST)
+    if type(saved) == "string" and saved ~= "" and PACKS[saved] then
+        current.Text = "Current: " .. saved .. " (saved)"
+        task.wait(0.2)
+        applyPack(saved)
+    end
+end)
