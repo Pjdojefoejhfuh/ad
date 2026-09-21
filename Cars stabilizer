@@ -1,0 +1,931 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- ═══════════════════════════════════════════════
+-- 🖤🤍 PALETTE NOIR & BLANC
+-- ═══════════════════════════════════════════════
+local CONFIG = {
+    MAGNET_FORCE      = 2500,
+    MAGNET_FORCE_DOWN = 800,
+}
+
+local T = {
+    BG       = Color3.fromRGB(0, 0, 0),
+    BG_DEEP  = Color3.fromRGB(8, 8, 8),
+    CARD     = Color3.fromRGB(15, 15, 15),
+    CARD_HOV = Color3.fromRGB(30, 30, 30),
+    LINE     = Color3.fromRGB(255, 255, 255),
+    TEXT     = Color3.fromRGB(255, 255, 255),
+    TEXT_DIM = Color3.fromRGB(160, 160, 160),
+    WHITE    = Color3.fromRGB(255, 255, 255),
+    BLACK    = Color3.fromRGB(0, 0, 0),
+    OFF      = Color3.fromRGB(80, 80, 80),
+}
+
+local GRADIENT_SEQ = ColorSequence.new({
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(60, 60, 60)),
+    ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(180, 180, 180)),
+    ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(60, 60, 60)),
+})
+
+local F = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- Liste globale des gradients animés
+local animatedGradients = {}
+
+local function registerGradient(grad, speed)
+    table.insert(animatedGradients, {grad = grad, speed = speed or 90})
+end
+
+task.spawn(function()
+    while task.wait(0.05) do
+        for i = #animatedGradients, 1, -1 do
+            local entry = animatedGradients[i]
+            if entry.grad and entry.grad.Parent then
+                entry.grad.Rotation = (entry.grad.Rotation + entry.speed * 0.05) % 360
+            else
+                table.remove(animatedGradients, i)
+            end
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════
+-- 🔔 NOTIFICATIONS NOIR & BLANC
+-- ═══════════════════════════════════════════════
+local notifContainer = nil
+
+local function buildNotifContainer(parent)
+    if notifContainer and notifContainer.Parent then return notifContainer end
+    local c = Instance.new("Frame")
+    c.Name = "NotifContainer"
+    c.Size = UDim2.new(0, 260, 1, -40)
+    c.Position = UDim2.new(0.5, -130, 0, 20)
+    c.BackgroundTransparency = 1
+    c.Parent = parent
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, 6)
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    l.VerticalAlignment = Enum.VerticalAlignment.Top
+    l.Parent = c
+    notifContainer = c
+    return c
+end
+
+local notifOrder = 0
+local function showNotif(parent, title, message, notifType)
+    notifType = notifType or "info"
+    notifOrder = notifOrder + 1
+    local container = buildNotifContainer(parent)
+
+    local accentColor, icon
+    if notifType == "success" then accentColor = Color3.fromRGB(100, 255, 160); icon = "✓"
+    elseif notifType == "error" then accentColor = Color3.fromRGB(255, 90, 90); icon = "✕"
+    elseif notifType == "warn" then accentColor = Color3.fromRGB(255, 190, 60); icon = "!"
+    else accentColor = T.WHITE; icon = "★" end
+
+    local notif = Instance.new("Frame")
+    notif.Size = UDim2.new(0, 260, 0, 46)
+    notif.BackgroundColor3 = T.BG
+    notif.BackgroundTransparency = 0.05
+    notif.BorderSizePixel = 0
+    notif.Position = UDim2.new(0, 0, 0, -60)
+    notif.LayoutOrder = notifOrder
+    notif.ClipsDescendants = true
+    notif.Parent = container
+    Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 10)
+
+    local nStroke = Instance.new("UIStroke")
+    nStroke.Thickness = 1.4
+    nStroke.Transparency = 0.1
+    nStroke.Color = accentColor
+    nStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    nStroke.Parent = notif
+
+    local sGrad = Instance.new("UIGradient")
+    sGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.OFF),
+        ColorSequenceKeypoint.new(0.5, accentColor),
+        ColorSequenceKeypoint.new(1, T.OFF),
+    })
+    sGrad.Rotation = 90
+    sGrad.Parent = nStroke
+    registerGradient(sGrad, 120)
+
+    local leftBar = Instance.new("Frame")
+    leftBar.Size = UDim2.new(0, 2, 1, -12)
+    leftBar.Position = UDim2.new(0, 5, 0, 6)
+    leftBar.BackgroundColor3 = accentColor
+    leftBar.BorderSizePixel = 0
+    leftBar.Parent = notif
+    Instance.new("UICorner", leftBar).CornerRadius = UDim.new(1, 0)
+
+    local iconLbl = Instance.new("TextLabel")
+    iconLbl.Size = UDim2.new(0, 18, 0, 18)
+    iconLbl.Position = UDim2.new(0, 12, 0.5, -9)
+    iconLbl.BackgroundTransparency = 1
+    iconLbl.Text = icon
+    iconLbl.TextColor3 = accentColor
+    iconLbl.Font = Enum.Font.GothamBlack
+    iconLbl.TextSize = 14
+    iconLbl.Parent = notif
+
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -40, 0, 14)
+    titleLbl.Position = UDim2.new(0, 36, 0, 6)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = T.TEXT
+    titleLbl.Font = Enum.Font.GothamBlack
+    titleLbl.TextSize = 10
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = notif
+
+    local msgLbl = Instance.new("TextLabel")
+    msgLbl.Size = UDim2.new(1, -40, 0, 12)
+    msgLbl.Position = UDim2.new(0, 36, 0, 22)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Text = message
+    msgLbl.TextColor3 = T.TEXT_DIM
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextSize = 9
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLbl.Parent = notif
+
+    local timerBar = Instance.new("Frame")
+    timerBar.Size = UDim2.new(1, -10, 0, 2)
+    timerBar.Position = UDim2.new(0, 5, 1, -3)
+    timerBar.BackgroundColor3 = accentColor
+    timerBar.BorderSizePixel = 0
+    timerBar.Parent = notif
+    Instance.new("UICorner", timerBar).CornerRadius = UDim.new(1, 0)
+
+    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 0, 0, 0)
+    }):Play()
+
+    TweenService:Create(timerBar, TweenInfo.new(2.5, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 0, 2)
+    }):Play()
+
+    task.delay(2.5, function()
+        if notif and notif.Parent then
+            TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2.new(0, 0, 0, -60),
+                BackgroundTransparency = 1,
+            }):Play()
+            task.wait(0.35)
+            if notif and notif.Parent then notif:Destroy() end
+        end
+    end)
+end
+
+local state = {
+    enabled       = true,
+    currentCart   = nil,
+    allVF         = {},
+    heartbeatConn = nil,
+    uiVisible     = true,
+    currentTab    = "main",
+}
+
+-- ═══════════════════════════════════════════════
+-- 🛠️ HELPERS UI
+-- ═══════════════════════════════════════════════
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 10)
+    c.Parent = parent
+    return c
+end
+
+local function strokeAnim(parent, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Thickness = thickness or 1.5
+    s.Transparency = transparency or 0
+    s.Color = T.LINE
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = parent
+    local g = Instance.new("UIGradient")
+    g.Color = GRADIENT_SEQ
+    g.Rotation = 0
+    g.Parent = s
+    registerGradient(g, 120)
+    return s, g
+end
+
+local function addShimmer(frame, speed)
+    speed = speed or 2.5
+    local shimmer = Instance.new("Frame")
+    shimmer.Name = "Shimmer"
+    shimmer.Size = UDim2.new(0, 60, 1, 0)
+    shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+    shimmer.BackgroundColor3 = T.WHITE
+    shimmer.BackgroundTransparency = 0.9
+    shimmer.BorderSizePixel = 0
+    shimmer.ZIndex = 2
+    shimmer.Parent = frame
+    corner(shimmer, 20)
+    task.spawn(function()
+        while shimmer and shimmer.Parent do
+            shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+            TweenService:Create(shimmer, TweenInfo.new(speed, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1.1, 0, 0, 0)
+            }):Play()
+            task.wait(speed + 1.5)
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- 🎨 CREATE UI
+-- ═══════════════════════════════════════════════
+local function createUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CartStabUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = player.PlayerGui
+
+    -- ═══ SPLASH ═══
+    local splash = Instance.new("Frame")
+    splash.Size = UDim2.new(1, 0, 1, 0)
+    splash.BackgroundColor3 = T.BLACK
+    splash.BackgroundTransparency = 0.3
+    splash.ZIndex = 100
+    splash.Parent = screenGui
+
+    local splashTitle = Instance.new("TextLabel")
+    splashTitle.Size = UDim2.new(1, 0, 0, 60)
+    splashTitle.Position = UDim2.new(0, 0, 0.5, -60)
+    splashTitle.BackgroundTransparency = 1
+    splashTitle.Text = "🛒 CART STABILIZER"
+    splashTitle.TextColor3 = T.WHITE
+    splashTitle.TextTransparency = 1
+    splashTitle.TextSize = 26
+    splashTitle.Font = Enum.Font.GothamBlack
+    splashTitle.TextXAlignment = Enum.TextXAlignment.Center
+    splashTitle.ZIndex = 101
+    splashTitle.Parent = splash
+
+    local titleGrad = Instance.new("UIGradient")
+    titleGrad.Color = GRADIENT_SEQ
+    titleGrad.Rotation = 45
+    titleGrad.Parent = splashTitle
+    registerGradient(titleGrad, 180)
+
+    local splashLine = Instance.new("Frame")
+    splashLine.Size = UDim2.new(0, 0, 0, 2)
+    splashLine.Position = UDim2.new(0.5, 0, 0.5, 10)
+    splashLine.BackgroundColor3 = T.WHITE
+    splashLine.BorderSizePixel = 0
+    splashLine.ZIndex = 101
+    splashLine.Parent = splash
+    corner(splashLine, 999)
+
+    local splashSub = Instance.new("TextLabel")
+    splashSub.Size = UDim2.new(1, 0, 0, 30)
+    splashSub.Position = UDim2.new(0, 0, 0.5, 22)
+    splashSub.BackgroundTransparency = 1
+    splashSub.Text = "Stabilisateur activé"
+    splashSub.TextColor3 = T.TEXT_DIM
+    splashSub.TextTransparency = 1
+    splashSub.TextSize = 14
+    splashSub.Font = Enum.Font.Gotham
+    splashSub.TextXAlignment = Enum.TextXAlignment.Center
+    splashSub.ZIndex = 101
+    splashSub.Parent = splash
+
+    task.spawn(function()
+        task.wait(0.2)
+        TweenService:Create(splashTitle, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+        task.wait(0.3)
+        TweenService:Create(splashLine, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
+            Size = UDim2.new(0.4, 0, 0, 2),
+            Position = UDim2.new(0.3, 0, 0.5, 10)
+        }):Play()
+        task.wait(0.2)
+        TweenService:Create(splashSub, TweenInfo.new(0.4), {TextTransparency = 0}):Play()
+        task.wait(1.8)
+        TweenService:Create(splash, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(splashTitle, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+        TweenService:Create(splashSub, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+        TweenService:Create(splashLine, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+        task.wait(0.5)
+        splash:Destroy()
+    end)
+
+    -- ═══ PANEL ═══
+    local panel = Instance.new("Frame")
+    panel.Name = "Panel"
+    panel.Size = UDim2.new(0, 240, 0, 190)
+    panel.Position = UDim2.new(1, 20, 0, 80)
+    panel.BackgroundColor3 = T.BG
+    panel.BackgroundTransparency = 0.05
+    panel.BorderSizePixel = 0
+    panel.ClipsDescendants = true
+    panel.Parent = screenGui
+    corner(panel, 16)
+
+    -- UIStroke animé 360°
+    local panelStroke = strokeAnim(panel, 1.8, 0.2)
+
+    -- Fond dégradé "dégoulinant"
+    local bgGrad = Instance.new("UIGradient")
+    bgGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20, 20, 20)),
+        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 0, 0)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20, 20, 20)),
+    })
+    bgGrad.Rotation = 135
+    bgGrad.Parent = panel
+    registerGradient(bgGrad, 60)
+
+    addShimmer(panel, 3)
+
+    -- ═══ TITLE BAR ═══
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 38)
+    titleBar.BackgroundTransparency = 1
+    titleBar.ZIndex = 2
+    titleBar.Parent = panel
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Position = UDim2.new(0, 12, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "✦ CART STABILIZER ✦"
+    title.TextColor3 = T.WHITE
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBlack
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 3
+    title.Parent = titleBar
+
+    local titleGradText = Instance.new("UIGradient")
+    titleGradText.Color = GRADIENT_SEQ
+    titleGradText.Rotation = 45
+    titleGradText.Parent = title
+    registerGradient(titleGradText, 150)
+
+    local hideBtn = Instance.new("TextButton")
+    hideBtn.Size = UDim2.new(0, 22, 0, 22)
+    hideBtn.Position = UDim2.new(1, -28, 0.5, -11)
+    hideBtn.BackgroundColor3 = T.BG_DEEP
+    hideBtn.BorderSizePixel = 0
+    hideBtn.Text = "−"
+    hideBtn.TextColor3 = T.WHITE
+    hideBtn.TextSize = 15
+    hideBtn.Font = Enum.Font.GothamBold
+    hideBtn.AutoButtonColor = false
+    hideBtn.ZIndex = 4
+    hideBtn.Parent = titleBar
+    corner(hideBtn, 999)
+    local hideStroke = Instance.new("UIStroke")
+    hideStroke.Color = T.LINE
+    hideStroke.Thickness = 1
+    hideStroke.Transparency = 0.4
+    hideStroke.Parent = hideBtn
+
+    hideBtn.MouseEnter:Connect(function()
+        TweenService:Create(hideBtn, F, {BackgroundColor3 = T.WHITE, TextColor3 = T.BLACK}):Play()
+        TweenService:Create(hideStroke, F, {Transparency = 0}):Play()
+    end)
+    hideBtn.MouseLeave:Connect(function()
+        TweenService:Create(hideBtn, F, {BackgroundColor3 = T.BG_DEEP, TextColor3 = T.WHITE}):Play()
+        TweenService:Create(hideStroke, F, {Transparency = 0.4}):Play()
+    end)
+
+    -- ═══ TABS ═══
+    local tabBar = Instance.new("Frame")
+    tabBar.Size = UDim2.new(1, -16, 0, 30)
+    tabBar.Position = UDim2.new(0, 8, 0, 40)
+    tabBar.BackgroundColor3 = T.CARD
+    tabBar.BorderSizePixel = 0
+    tabBar.ZIndex = 2
+    tabBar.Parent = panel
+    corner(tabBar, 8)
+    local tabBarStroke = Instance.new("UIStroke")
+    tabBarStroke.Color = T.LINE
+    tabBarStroke.Thickness = 1
+    tabBarStroke.Transparency = 0.6
+    tabBarStroke.Parent = tabBar
+
+    local tabMain = Instance.new("TextButton")
+    tabMain.Size = UDim2.new(0.5, -2, 1, -4)
+    tabMain.Position = UDim2.new(0, 2, 0, 2)
+    tabMain.BackgroundColor3 = T.WHITE
+    tabMain.BackgroundTransparency = 0.1
+    tabMain.BorderSizePixel = 0
+    tabMain.Text = "PRINCIPAL"
+    tabMain.TextColor3 = T.BLACK
+    tabMain.TextSize = 11
+    tabMain.Font = Enum.Font.GothamBlack
+    tabMain.AutoButtonColor = false
+    tabMain.ZIndex = 3
+    tabMain.Parent = tabBar
+    corner(tabMain, 6)
+
+    local tabForces = Instance.new("TextButton")
+    tabForces.Size = UDim2.new(0.5, -2, 1, -4)
+    tabForces.Position = UDim2.new(0.5, 0, 0, 2)
+    tabForces.BackgroundColor3 = T.BLACK
+    tabForces.BackgroundTransparency = 0.7
+    tabForces.BorderSizePixel = 0
+    tabForces.Text = "FORCES"
+    tabForces.TextColor3 = T.TEXT_DIM
+    tabForces.TextSize = 11
+    tabForces.Font = Enum.Font.Gotham
+    tabForces.AutoButtonColor = false
+    tabForces.ZIndex = 3
+    tabForces.Parent = tabBar
+    corner(tabForces, 6)
+
+    -- ═══ PAGE MAIN ═══
+    local pageMain = Instance.new("Frame")
+    pageMain.Size = UDim2.new(1, -16, 0, 100)
+    pageMain.Position = UDim2.new(0, 8, 0, 76)
+    pageMain.BackgroundTransparency = 1
+    pageMain.ZIndex = 2
+    pageMain.Parent = panel
+
+    local cartInfo = Instance.new("TextLabel")
+    cartInfo.Name = "CartInfo"
+    cartInfo.Size = UDim2.new(1, 0, 0, 20)
+    cartInfo.Position = UDim2.new(0, 0, 0, 0)
+    cartInfo.BackgroundTransparency = 1
+    cartInfo.Text = "Assieds-toi sur un cart"
+    cartInfo.TextColor3 = T.TEXT_DIM
+    cartInfo.TextSize = 11
+    cartInfo.Font = Enum.Font.Gotham
+    cartInfo.TextXAlignment = Enum.TextXAlignment.Left
+    cartInfo.ZIndex = 3
+    cartInfo.Parent = pageMain
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Name = "ToggleBtn"
+    toggleBtn.Size = UDim2.new(1, 0, 0, 40)
+    toggleBtn.Position = UDim2.new(0, 0, 0, 26)
+    toggleBtn.BackgroundColor3 = T.CARD
+    toggleBtn.BorderSizePixel = 0
+    toggleBtn.Text = ""
+    toggleBtn.AutoButtonColor = false
+    toggleBtn.ZIndex = 3
+    toggleBtn.Parent = pageMain
+    corner(toggleBtn, 10)
+
+    -- UIStroke animé sur le toggle
+    local btnStroke, btnStrokeGrad = strokeAnim(toggleBtn, 1.5, 0.1)
+
+    -- Dégradé fond qui bouge
+    local btnBgGrad = Instance.new("UIGradient")
+    btnBgGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 25)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(10, 10, 10)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 25)),
+    })
+    btnBgGrad.Rotation = 135
+    btnBgGrad.Parent = toggleBtn
+    registerGradient(btnBgGrad, 80)
+
+    local btnIcon = Instance.new("TextLabel")
+    btnIcon.Size = UDim2.new(0, 28, 1, 0)
+    btnIcon.Position = UDim2.new(0, 8, 0, 0)
+    btnIcon.BackgroundTransparency = 1
+    btnIcon.Text = "🛡"
+    btnIcon.TextSize = 16
+    btnIcon.Font = Enum.Font.GothamBold
+    btnIcon.TextColor3 = T.WHITE
+    btnIcon.ZIndex = 4
+    btnIcon.Parent = toggleBtn
+
+    local btnLabel = Instance.new("TextLabel")
+    btnLabel.Name = "BtnLabel"
+    btnLabel.Size = UDim2.new(1, -60, 1, 0)
+    btnLabel.Position = UDim2.new(0, 36, 0, 0)
+    btnLabel.BackgroundTransparency = 1
+    btnLabel.Text = "STABILISATEUR : ON"
+    btnLabel.TextColor3 = T.WHITE
+    btnLabel.TextSize = 12
+    btnLabel.Font = Enum.Font.GothamBlack
+    btnLabel.TextXAlignment = Enum.TextXAlignment.Left
+    btnLabel.ZIndex = 4
+    btnLabel.Parent = toggleBtn
+
+    local led = Instance.new("Frame")
+    led.Size = UDim2.new(0, 8, 0, 8)
+    led.Position = UDim2.new(1, -14, 0.5, -4)
+    led.BackgroundColor3 = T.WHITE
+    led.BorderSizePixel = 0
+    led.ZIndex = 4
+    led.Parent = toggleBtn
+    corner(led, 999)
+
+    task.spawn(function()
+        while led and led.Parent do
+            TweenService:Create(led, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0.7}):Play()
+            task.wait(0.7)
+            TweenService:Create(led, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {BackgroundTransparency = 0}):Play()
+            task.wait(0.7)
+        end
+    end)
+
+    -- ═══ PAGE FORCES ═══
+    local pageForces = Instance.new("Frame")
+    pageForces.Size = UDim2.new(1, -16, 0, 100)
+    pageForces.Position = UDim2.new(0, 8, 0, 76)
+    pageForces.BackgroundTransparency = 1
+    pageForces.ZIndex = 2
+    pageForces.Visible = false
+    pageForces.Parent = panel
+
+    local labelNormal = Instance.new("TextLabel")
+    labelNormal.Size = UDim2.new(1, 0, 0, 16)
+    labelNormal.Position = UDim2.new(0, 0, 0, 0)
+    labelNormal.BackgroundTransparency = 1
+    labelNormal.Text = "Force normale : " .. CONFIG.MAGNET_FORCE
+    labelNormal.Name = "LabelNormal"
+    labelNormal.TextColor3 = T.WHITE
+    labelNormal.TextSize = 11
+    labelNormal.Font = Enum.Font.GothamBlack
+    labelNormal.TextXAlignment = Enum.TextXAlignment.Left
+    labelNormal.ZIndex = 3
+    labelNormal.Parent = pageForces
+
+    local sliderNormalBg = Instance.new("Frame")
+    sliderNormalBg.Size = UDim2.new(1, 0, 0, 10)
+    sliderNormalBg.Position = UDim2.new(0, 0, 0, 20)
+    sliderNormalBg.BackgroundColor3 = T.CARD
+    sliderNormalBg.BorderSizePixel = 0
+    sliderNormalBg.ZIndex = 3
+    sliderNormalBg.Parent = pageForces
+    corner(sliderNormalBg, 999)
+
+    local sliderNormalFill = Instance.new("Frame")
+    sliderNormalFill.Size = UDim2.new(CONFIG.MAGNET_FORCE / 5000, 0, 1, 0)
+    sliderNormalFill.BackgroundColor3 = T.WHITE
+    sliderNormalFill.BorderSizePixel = 0
+    sliderNormalFill.ZIndex = 4
+    sliderNormalFill.Parent = sliderNormalBg
+    corner(sliderNormalFill, 999)
+
+    local normalFillGrad = Instance.new("UIGradient")
+    normalFillGrad.Color = GRADIENT_SEQ
+    normalFillGrad.Rotation = 0
+    normalFillGrad.Parent = sliderNormalFill
+    registerGradient(normalFillGrad, 120)
+
+    local sliderNormalBtn = Instance.new("TextButton")
+    sliderNormalBtn.Size = UDim2.new(1, 0, 1, 0)
+    sliderNormalBtn.BackgroundTransparency = 1
+    sliderNormalBtn.Text = ""
+    sliderNormalBtn.ZIndex = 5
+    sliderNormalBtn.Parent = sliderNormalBg
+
+    local labelDown = Instance.new("TextLabel")
+    labelDown.Size = UDim2.new(1, 0, 0, 16)
+    labelDown.Position = UDim2.new(0, 0, 0, 40)
+    labelDown.BackgroundTransparency = 1
+    labelDown.Text = "Force pente : " .. CONFIG.MAGNET_FORCE_DOWN
+    labelDown.Name = "LabelDown"
+    labelDown.TextColor3 = T.WHITE
+    labelDown.TextSize = 11
+    labelDown.Font = Enum.Font.GothamBlack
+    labelDown.TextXAlignment = Enum.TextXAlignment.Left
+    labelDown.ZIndex = 3
+    labelDown.Parent = pageForces
+
+    local sliderDownBg = Instance.new("Frame")
+    sliderDownBg.Size = UDim2.new(1, 0, 0, 10)
+    sliderDownBg.Position = UDim2.new(0, 0, 0, 60)
+    sliderDownBg.BackgroundColor3 = T.CARD
+    sliderDownBg.BorderSizePixel = 0
+    sliderDownBg.ZIndex = 3
+    sliderDownBg.Parent = pageForces
+    corner(sliderDownBg, 999)
+
+    local sliderDownFill = Instance.new("Frame")
+    sliderDownFill.Size = UDim2.new(CONFIG.MAGNET_FORCE_DOWN / 5000, 0, 1, 0)
+    sliderDownFill.BackgroundColor3 = T.WHITE
+    sliderDownFill.BorderSizePixel = 0
+    sliderDownFill.ZIndex = 4
+    sliderDownFill.Parent = sliderDownBg
+    corner(sliderDownFill, 999)
+
+    local downFillGrad = Instance.new("UIGradient")
+    downFillGrad.Color = GRADIENT_SEQ
+    downFillGrad.Rotation = 0
+    downFillGrad.Parent = sliderDownFill
+    registerGradient(downFillGrad, 120)
+
+    local sliderDownBtn = Instance.new("TextButton")
+    sliderDownBtn.Size = UDim2.new(1, 0, 1, 0)
+    sliderDownBtn.BackgroundTransparency = 1
+    sliderDownBtn.Text = ""
+    sliderDownBtn.ZIndex = 5
+    sliderDownBtn.Parent = sliderDownBg
+
+    -- Logique slider
+    local function makeSlider(sliderBg, fill, label, labelPrefix, maxVal, configKey)
+        local draggingSlider = false
+        sliderBg.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+                draggingSlider = true
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+                local absPos = sliderBg.AbsolutePosition
+                local absSize = sliderBg.AbsoluteSize
+                local relX = math.clamp((input.Position.X - absPos.X) / absSize.X, 0, 1)
+                local newVal = math.floor(relX * maxVal)
+                CONFIG[configKey] = newVal
+                fill.Size = UDim2.new(relX, 0, 1, 0)
+                label.Text = labelPrefix .. newVal
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+                draggingSlider = false
+            end
+        end)
+    end
+
+    makeSlider(sliderNormalBg, sliderNormalFill, labelNormal, "Force normale : ", 5000, "MAGNET_FORCE")
+    makeSlider(sliderDownBg, sliderDownFill, labelDown, "Force pente : ", 5000, "MAGNET_FORCE_DOWN")
+
+    -- Onglets
+    local function switchTab(tab)
+        state.currentTab = tab
+        if tab == "main" then
+            pageMain.Visible = true
+            pageForces.Visible = false
+            TweenService:Create(tabMain, F, {
+                BackgroundColor3 = T.WHITE,
+                BackgroundTransparency = 0.1,
+            }):Play()
+            tabMain.TextColor3 = T.BLACK
+            tabMain.Font = Enum.Font.GothamBlack
+            TweenService:Create(tabForces, F, {
+                BackgroundColor3 = T.BLACK,
+                BackgroundTransparency = 0.7,
+            }):Play()
+            tabForces.TextColor3 = T.TEXT_DIM
+            tabForces.Font = Enum.Font.Gotham
+        else
+            pageMain.Visible = false
+            pageForces.Visible = true
+            TweenService:Create(tabForces, F, {
+                BackgroundColor3 = T.WHITE,
+                BackgroundTransparency = 0.1,
+            }):Play()
+            tabForces.TextColor3 = T.BLACK
+            tabForces.Font = Enum.Font.GothamBlack
+            TweenService:Create(tabMain, F, {
+                BackgroundColor3 = T.BLACK,
+                BackgroundTransparency = 0.7,
+            }):Play()
+            tabMain.TextColor3 = T.TEXT_DIM
+            tabMain.Font = Enum.Font.Gotham
+        end
+    end
+
+    tabMain.MouseButton1Click:Connect(function() switchTab("main") end)
+    tabForces.MouseButton1Click:Connect(function() switchTab("forces") end)
+
+    -- Animation entrée
+    task.spawn(function()
+        task.wait(1.4)
+        TweenService:Create(panel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(1, -255, 0, 80)
+        }):Play()
+    end)
+
+    -- Drag
+    local dragging, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = panel.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            panel.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    hideBtn.MouseButton1Click:Connect(function()
+        state.uiVisible = not state.uiVisible
+        if state.uiVisible then
+            hideBtn.Text = "−"
+            panel.ClipsDescendants = true
+            TweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 240, 0, 210)
+            }):Play()
+        else
+            hideBtn.Text = "+"
+            TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 240, 0, 38)
+            }):Play()
+        end
+    end)
+
+    toggleBtn.MouseEnter:Connect(function()
+        TweenService:Create(toggleBtn, F, {BackgroundColor3 = T.CARD_HOV}):Play()
+    end)
+    toggleBtn.MouseLeave:Connect(function()
+        TweenService:Create(toggleBtn, F, {BackgroundColor3 = T.CARD}):Play()
+    end)
+
+    return screenGui, toggleBtn, cartInfo, btnLabel, btnStroke, led
+end
+
+-- ═══════════════════════════════════════════════
+-- 🧲 STABILISATEUR
+-- ═══════════════════════════════════════════════
+local function cleanup()
+    if state.heartbeatConn then
+        state.heartbeatConn:Disconnect()
+        state.heartbeatConn = nil
+    end
+    for _, vf in ipairs(state.allVF or {}) do
+        if vf.Parent then vf:Destroy() end
+    end
+    state.allVF = {}
+    state.currentCart = nil
+end
+
+local function getWheels(cart)
+    local wheels = {}
+    local keywords = {"wheel", "roue", "tire", "axle", "roda", "tyre", "pneu"}
+    for _, v in ipairs(cart:GetDescendants()) do
+        if v:IsA("BasePart") and not v.Anchored then
+            local name = v.Name:lower()
+            for _, kw in ipairs(keywords) do
+                if name:find(kw) then
+                    table.insert(wheels, v)
+                    break
+                end
+            end
+        end
+    end
+    if #wheels == 0 then
+        local allParts = {}
+        for _, v in ipairs(cart:GetDescendants()) do
+            if v:IsA("BasePart") and not v.Anchored then
+                table.insert(allParts, v)
+            end
+        end
+        if cart.PrimaryPart then table.insert(allParts, cart.PrimaryPart) end
+        table.sort(allParts, function(a, b) return a.Position.Y < b.Position.Y end)
+        local count = math.max(1, math.floor(#allParts / 3))
+        for i = 1, count do table.insert(wheels, allParts[i]) end
+    end
+    return wheels
+end
+
+local function applyStabilizer(cart)
+    if not cart then return end
+    local wheels = getWheels(cart)
+    if #wheels == 0 then return end
+
+    state.currentCart = cart
+    state.allVF = {}
+
+    for _, part in ipairs(wheels) do
+        local att = part:FindFirstChild("_StabVFAtt")
+        if not att then
+            att = Instance.new("Attachment")
+            att.Name = "_StabVFAtt"
+            att.Parent = part
+        end
+        local vf = Instance.new("VectorForce")
+        vf.Attachment0 = att
+        vf.RelativeTo = Enum.ActuatorRelativeTo.World
+        vf.Force = Vector3.new(0, 0, 0)
+        vf.Parent = part
+        table.insert(state.allVF, vf)
+    end
+
+    local refPart = cart.PrimaryPart or wheels[1]
+
+    state.heartbeatConn = RunService.Heartbeat:Connect(function()
+        if not refPart or not refPart.Parent then cleanup() return end
+
+        local forceMag = 0
+        if state.enabled then
+            local velY = refPart.AssemblyLinearVelocity.Y
+            if math.abs(velY) > 5 then
+                forceMag = CONFIG.MAGNET_FORCE_DOWN
+            else
+                forceMag = CONFIG.MAGNET_FORCE
+            end
+        end
+
+        for _, vf in ipairs(state.allVF) do
+            if vf.Parent then
+                vf.Force = Vector3.new(0, -forceMag * vf.Parent.AssemblyMass, 0)
+            end
+        end
+    end)
+end
+
+local function findCartFromSeat(seat)
+    local current = seat.Parent
+    while current and current ~= workspace do
+        if current:IsA("Model") then return current end
+        current = current.Parent
+    end
+    return nil
+end
+
+local function onSeatChanged(seat)
+    cleanup()
+    if not seat then return end
+    local cart = findCartFromSeat(seat)
+    if not cart then return end
+    if state.enabled then applyStabilizer(cart) else state.currentCart = cart end
+end
+
+local function watchSeats()
+    humanoid.Seated:Connect(function(isSeated, seat)
+        if isSeated and seat then onSeatChanged(seat) else onSeatChanged(nil) end
+    end)
+end
+
+local screenGui, toggleBtn, cartInfo, btnLabel, btnStroke, led = createUI()
+
+RunService.Heartbeat:Connect(function()
+    if state.currentCart and state.currentCart.Parent then
+        cartInfo.Text = "🛒 " .. state.currentCart.Name
+        cartInfo.TextColor3 = Color3.fromRGB(100, 255, 160)
+    else
+        cartInfo.Text = "Assieds-toi sur un cart"
+        cartInfo.TextColor3 = T.TEXT_DIM
+    end
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
+    state.enabled = not state.enabled
+    if state.enabled then
+        btnLabel.Text = "STABILISATEUR : ON"
+        btnLabel.TextColor3 = T.WHITE
+        led.BackgroundColor3 = T.WHITE
+        btnStroke.Color = T.WHITE
+        if btnStrokeGrad then btnStrokeGrad.Color = GRADIENT_SEQ end
+        if state.currentCart and state.currentCart.Parent then
+            applyStabilizer(state.currentCart)
+        end
+        showNotif(screenGui, "Cart Stabilizer", "Activé", "success")
+    else
+        btnLabel.Text = "STABILISATEUR : OFF"
+        btnLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+        led.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
+        btnStroke.Color = Color3.fromRGB(255, 90, 90)
+        if btnStrokeGrad then
+            btnStrokeGrad.Color = ColorSequence.new(Color3.fromRGB(255, 90, 90))
+        end
+        for _, vf in ipairs(state.allVF) do
+            if vf.Parent then vf.Force = Vector3.new(0, 0, 0) end
+        end
+        showNotif(screenGui, "Cart Stabilizer", "Désactivé", "error")
+    end
+end)
+
+player.CharacterAdded:Connect(function(char)
+    cleanup()
+    character = char
+    humanoid = char:WaitForChild("Humanoid")
+    watchSeats()
+end)
+
+watchSeats()
+print("[CartStabilizer] ✅ Prêt !")
