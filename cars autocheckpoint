@@ -1,0 +1,836 @@
+-- ═══════════════════════════════════════════════
+-- 🚶 MOVEMENT SCRIPT + GUI PREMIUM
+-- ═══════════════════════════════════════════════
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- ═══════════════════════════════════════════════
+-- 🖤🤍 PALETTE NOIR & BLANC
+-- ═══════════════════════════════════════════════
+local T = {
+    BG       = Color3.fromRGB(0, 0, 0),
+    BG_DEEP  = Color3.fromRGB(8, 8, 8),
+    CARD     = Color3.fromRGB(15, 15, 15),
+    CARD_HOV = Color3.fromRGB(30, 30, 30),
+    LINE     = Color3.fromRGB(255, 255, 255),
+    TEXT     = Color3.fromRGB(255, 255, 255),
+    TEXT_DIM = Color3.fromRGB(160, 160, 160),
+    WHITE    = Color3.fromRGB(255, 255, 255),
+    BLACK    = Color3.fromRGB(0, 0, 0),
+    SUCCESS  = Color3.fromRGB(100, 255, 160),
+    DANGER   = Color3.fromRGB(255, 90, 90),
+    WARN     = Color3.fromRGB(255, 190, 60),
+    OFF      = Color3.fromRGB(80, 80, 80),
+}
+
+local GRADIENT_SEQ = ColorSequence.new({
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(60, 60, 60)),
+    ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(180, 180, 180)),
+    ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(60, 60, 60)),
+})
+
+local F = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+-- Liste globale des gradients animés
+local animatedGradients = {}
+
+local function registerGradient(grad, speed)
+    table.insert(animatedGradients, {grad = grad, speed = speed or 90})
+end
+
+task.spawn(function()
+    while task.wait(0.05) do
+        for i = #animatedGradients, 1, -1 do
+            local entry = animatedGradients[i]
+            if entry.grad and entry.grad.Parent then
+                entry.grad.Rotation = (entry.grad.Rotation + entry.speed * 0.05) % 360
+            else
+                table.remove(animatedGradients, i)
+            end
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════
+-- 🛠️ HELPERS UI
+-- ═══════════════════════════════════════════════
+local function corner(parent, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 10)
+    c.Parent = parent
+    return c
+end
+
+local function strokeAnim(parent, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Thickness = thickness or 1.5
+    s.Transparency = transparency or 0
+    s.Color = T.LINE
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent = parent
+    local g = Instance.new("UIGradient")
+    g.Color = GRADIENT_SEQ
+    g.Rotation = 0
+    g.Parent = s
+    registerGradient(g, 120)
+    return s, g
+end
+
+local function addShimmer(frame, speed)
+    speed = speed or 2.5
+    local shimmer = Instance.new("Frame")
+    shimmer.Name = "Shimmer"
+    shimmer.Size = UDim2.new(0, 60, 1, 0)
+    shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+    shimmer.BackgroundColor3 = T.WHITE
+    shimmer.BackgroundTransparency = 0.92
+    shimmer.BorderSizePixel = 0
+    shimmer.ZIndex = 2
+    shimmer.Parent = frame
+    corner(shimmer, 20)
+    task.spawn(function()
+        while shimmer and shimmer.Parent do
+            shimmer.Position = UDim2.new(-0.3, 0, 0, 0)
+            TweenService:Create(shimmer, TweenInfo.new(speed, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1.1, 0, 0, 0)
+            }):Play()
+            task.wait(speed + 1.5)
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- 🔔 NOTIFICATIONS NOIR & BLANC
+-- ═══════════════════════════════════════════════
+local notifContainer = nil
+local notifOrder = 0
+
+local function buildNotifContainer(parent)
+    if notifContainer and notifContainer.Parent then return notifContainer end
+    local c = Instance.new("Frame")
+    c.Name = "NotifContainer"
+    c.Size = UDim2.new(0, 280, 1, -40)
+    c.Position = UDim2.new(0.5, -140, 0, 20)
+    c.BackgroundTransparency = 1
+    c.Parent = parent
+    local l = Instance.new("UIListLayout")
+    l.Padding = UDim.new(0, 6)
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    l.VerticalAlignment = Enum.VerticalAlignment.Top
+    l.Parent = c
+    notifContainer = c
+    return c
+end
+
+local function showNotif(parent, title, message, notifType)
+    notifType = notifType or "info"
+    notifOrder = notifOrder + 1
+    local container = buildNotifContainer(parent)
+
+    local accentColor, icon
+    if notifType == "success" then accentColor = T.SUCCESS; icon = "✓"
+    elseif notifType == "error" then accentColor = T.DANGER; icon = "✕"
+    elseif notifType == "warn" then accentColor = T.WARN; icon = "!"
+    else accentColor = T.WHITE; icon = "★" end
+
+    local notif = Instance.new("Frame")
+    notif.Size = UDim2.new(0, 280, 0, 46)
+    notif.BackgroundColor3 = T.BG
+    notif.BackgroundTransparency = 0.05
+    notif.BorderSizePixel = 0
+    notif.Position = UDim2.new(0, 0, 0, -60)
+    notif.LayoutOrder = notifOrder
+    notif.ClipsDescendants = true
+    notif.Parent = container
+    corner(notif, 10)
+
+    local nStroke = Instance.new("UIStroke")
+    nStroke.Thickness = 1.4
+    nStroke.Transparency = 0.1
+    nStroke.Color = accentColor
+    nStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    nStroke.Parent = notif
+
+    local sGrad = Instance.new("UIGradient")
+    sGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, T.OFF),
+        ColorSequenceKeypoint.new(0.5, accentColor),
+        ColorSequenceKeypoint.new(1, T.OFF),
+    })
+    sGrad.Rotation = 90
+    sGrad.Parent = nStroke
+    registerGradient(sGrad, 120)
+
+    local leftBar = Instance.new("Frame")
+    leftBar.Size = UDim2.new(0, 2, 1, -12)
+    leftBar.Position = UDim2.new(0, 5, 0, 6)
+    leftBar.BackgroundColor3 = accentColor
+    leftBar.BorderSizePixel = 0
+    leftBar.Parent = notif
+    corner(leftBar, 999)
+
+    local iconLbl = Instance.new("TextLabel")
+    iconLbl.Size = UDim2.new(0, 18, 0, 18)
+    iconLbl.Position = UDim2.new(0, 12, 0.5, -9)
+    iconLbl.BackgroundTransparency = 1
+    iconLbl.Text = icon
+    iconLbl.TextColor3 = accentColor
+    iconLbl.Font = Enum.Font.GothamBlack
+    iconLbl.TextSize = 14
+    iconLbl.Parent = notif
+
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -40, 0, 14)
+    titleLbl.Position = UDim2.new(0, 36, 0, 6)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = T.TEXT
+    titleLbl.Font = Enum.Font.GothamBlack
+    titleLbl.TextSize = 10
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = notif
+
+    local msgLbl = Instance.new("TextLabel")
+    msgLbl.Size = UDim2.new(1, -40, 0, 12)
+    msgLbl.Position = UDim2.new(0, 36, 0, 22)
+    msgLbl.BackgroundTransparency = 1
+    msgLbl.Text = message
+    msgLbl.TextColor3 = T.TEXT_DIM
+    msgLbl.Font = Enum.Font.Gotham
+    msgLbl.TextSize = 9
+    msgLbl.TextXAlignment = Enum.TextXAlignment.Left
+    msgLbl.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLbl.Parent = notif
+
+    local timerBar = Instance.new("Frame")
+    timerBar.Size = UDim2.new(1, -10, 0, 2)
+    timerBar.Position = UDim2.new(0, 5, 1, -3)
+    timerBar.BackgroundColor3 = accentColor
+    timerBar.BorderSizePixel = 0
+    timerBar.Parent = notif
+    corner(timerBar, 999)
+
+    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0, 0, 0, 0)
+    }):Play()
+
+    TweenService:Create(timerBar, TweenInfo.new(2.5, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 0, 2)
+    }):Play()
+
+    task.delay(2.5, function()
+        if notif and notif.Parent then
+            TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Position = UDim2.new(0, 0, 0, -60),
+                BackgroundTransparency = 1,
+            }):Play()
+            task.wait(0.35)
+            if notif and notif.Parent then notif:Destroy() end
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════
+-- 📁 CONFIG
+-- ═══════════════════════════════════════════════
+local MOVE_CONFIG = {
+    movementSpeed = 100, -- modifiable via slider
+    waypoints = {
+        Vector3.new(-435.50, 170.78, 103.00),
+        Vector3.new(-430.13, 160.30, 131.22),
+        Vector3.new(-431.63, 160.00, 159.40),
+    },
+    extraPointAfter1 = Vector3.new(-432, 163, 109),
+}
+
+local state = {
+    running = false,
+    currentWaypoint = 0,
+    totalWaypoints = #MOVE_CONFIG.waypoints,
+    currentStep = "",
+    stopRequested = false,
+}
+
+-- ═══════════════════════════════════════════════
+-- 🎨 CREATE UI
+-- ═══════════════════════════════════════════════
+local function createUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "MovementScriptUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+
+    -- ═══ SPLASH ═══
+    local splash = Instance.new("Frame")
+    splash.Size = UDim2.new(1, 0, 1, 0)
+    splash.BackgroundColor3 = T.BLACK
+    splash.BackgroundTransparency = 0.3
+    splash.ZIndex = 100
+    splash.Parent = screenGui
+
+    local splashTitle = Instance.new("TextLabel")
+    splashTitle.Size = UDim2.new(1, 0, 0, 60)
+    splashTitle.Position = UDim2.new(0, 0, 0.5, -60)
+    splashTitle.BackgroundTransparency = 1
+    splashTitle.Text = "🚶 MOVEMENT SCRIPT"
+    splashTitle.TextColor3 = T.WHITE
+    splashTitle.TextTransparency = 1
+    splashTitle.TextSize = 26
+    splashTitle.Font = Enum.Font.GothamBlack
+    splashTitle.TextXAlignment = Enum.TextXAlignment.Center
+    splashTitle.ZIndex = 101
+    splashTitle.Parent = splash
+
+    local titleGrad = Instance.new("UIGradient")
+    titleGrad.Color = GRADIENT_SEQ
+    titleGrad.Rotation = 45
+    titleGrad.Parent = splashTitle
+    registerGradient(titleGrad, 180)
+
+    local splashLine = Instance.new("Frame")
+    splashLine.Size = UDim2.new(0, 0, 0, 2)
+    splashLine.Position = UDim2.new(0.5, 0, 0.5, 10)
+    splashLine.BackgroundColor3 = T.WHITE
+    splashLine.BorderSizePixel = 0
+    splashLine.ZIndex = 101
+    splashLine.Parent = splash
+    corner(splashLine, 999)
+
+    local splashSub = Instance.new("TextLabel")
+    splashSub.Size = UDim2.new(1, 0, 0, 30)
+    splashSub.Position = UDim2.new(0, 0, 0.5, 22)
+    splashSub.BackgroundTransparency = 1
+    splashSub.Text = "Waypoints prêts"
+    splashSub.TextColor3 = T.TEXT_DIM
+    splashSub.TextTransparency = 1
+    splashSub.TextSize = 14
+    splashSub.Font = Enum.Font.Gotham
+    splashSub.TextXAlignment = Enum.TextXAlignment.Center
+    splashSub.ZIndex = 101
+    splashSub.Parent = splash
+
+    task.spawn(function()
+        task.wait(0.2)
+        TweenService:Create(splashTitle, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+        task.wait(0.3)
+        TweenService:Create(splashLine, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
+            Size = UDim2.new(0.4, 0, 0, 2),
+            Position = UDim2.new(0.3, 0, 0.5, 10)
+        }):Play()
+        task.wait(0.2)
+        TweenService:Create(splashSub, TweenInfo.new(0.4), {TextTransparency = 0}):Play()
+        task.wait(1.8)
+        TweenService:Create(splash, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(splashTitle, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+        TweenService:Create(splashSub, TweenInfo.new(0.4), {TextTransparency = 1}):Play()
+        TweenService:Create(splashLine, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+        task.wait(0.5)
+        splash:Destroy()
+    end)
+
+    -- ═══ PANEL ═══
+    local panel = Instance.new("Frame")
+    panel.Name = "Panel"
+    panel.Size = UDim2.new(0, 280, 0, 260)
+    panel.Position = UDim2.new(1, 20, 0.5, -130)
+    panel.BackgroundColor3 = T.BG
+    panel.BackgroundTransparency = 0.05
+    panel.BorderSizePixel = 0
+    panel.ClipsDescendants = true
+    panel.Active = true
+    panel.Parent = screenGui
+    corner(panel, 16)
+
+    -- UIStroke animé 360°
+    strokeAnim(panel, 1.8, 0.2)
+
+    -- Fond dégradé "dégoulinant"
+    local bgGrad = Instance.new("UIGradient")
+    bgGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(20, 20, 20)),
+        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 0, 0)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(20, 20, 20)),
+    })
+    bgGrad.Rotation = 135
+    bgGrad.Parent = panel
+    registerGradient(bgGrad, 60)
+
+    addShimmer(panel, 3.5)
+
+    -- ═══ TITLE BAR ═══
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 38)
+    titleBar.BackgroundTransparency = 1
+    titleBar.ZIndex = 2
+    titleBar.Parent = panel
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -40, 1, 0)
+    title.Position = UDim2.new(0, 12, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "✦ MOVEMENT SCRIPT ✦"
+    title.TextColor3 = T.WHITE
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBlack
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 3
+    title.Parent = titleBar
+
+    local titleGradText = Instance.new("UIGradient")
+    titleGradText.Color = GRADIENT_SEQ
+    titleGradText.Rotation = 45
+    titleGradText.Parent = title
+    registerGradient(titleGradText, 150)
+
+    local hideBtn = Instance.new("TextButton")
+    hideBtn.Size = UDim2.new(0, 22, 0, 22)
+    hideBtn.Position = UDim2.new(1, -28, 0.5, -11)
+    hideBtn.BackgroundColor3 = T.BG_DEEP
+    hideBtn.BorderSizePixel = 0
+    hideBtn.Text = "−"
+    hideBtn.TextColor3 = T.WHITE
+    hideBtn.TextSize = 15
+    hideBtn.Font = Enum.Font.GothamBold
+    hideBtn.AutoButtonColor = false
+    hideBtn.ZIndex = 4
+    hideBtn.Parent = titleBar
+    corner(hideBtn, 999)
+    local hideStroke = Instance.new("UIStroke")
+    hideStroke.Color = T.LINE
+    hideStroke.Thickness = 1
+    hideStroke.Transparency = 0.4
+    hideStroke.Parent = hideBtn
+
+    hideBtn.MouseEnter:Connect(function()
+        TweenService:Create(hideBtn, F, {BackgroundColor3 = T.WHITE, TextColor3 = T.BLACK}):Play()
+        TweenService:Create(hideStroke, F, {Transparency = 0}):Play()
+    end)
+    hideBtn.MouseLeave:Connect(function()
+        TweenService:Create(hideBtn, F, {BackgroundColor3 = T.BG_DEEP, TextColor3 = T.WHITE}):Play()
+        TweenService:Create(hideStroke, F, {Transparency = 0.4}):Play()
+    end)
+
+    -- ═══ STATUS CARD ═══
+    local statusCard = Instance.new("Frame")
+    statusCard.Size = UDim2.new(1, -20, 0, 52)
+    statusCard.Position = UDim2.new(0, 10, 0, 46)
+    statusCard.BackgroundColor3 = T.CARD
+    statusCard.BorderSizePixel = 0
+    statusCard.ZIndex = 2
+    statusCard.Parent = panel
+    corner(statusCard, 10)
+    local statusStroke = Instance.new("UIStroke")
+    statusStroke.Color = T.LINE
+    statusStroke.Thickness = 1
+    statusStroke.Transparency = 0.5
+    statusStroke.Parent = statusCard
+
+    local statusDot = Instance.new("Frame")
+    statusDot.Size = UDim2.new(0, 10, 0, 10)
+    statusDot.Position = UDim2.new(0, 12, 0, 14)
+    statusDot.BackgroundColor3 = T.OFF
+    statusDot.BorderSizePixel = 0
+    statusDot.ZIndex = 3
+    statusDot.Parent = statusCard
+    corner(statusDot, 999)
+
+    local statusTitle = Instance.new("TextLabel")
+    statusTitle.Size = UDim2.new(1, -40, 0, 16)
+    statusTitle.Position = UDim2.new(0, 30, 0, 8)
+    statusTitle.BackgroundTransparency = 1
+    statusTitle.Text = "EN ATTENTE"
+    statusTitle.TextColor3 = T.TEXT_DIM
+    statusTitle.Font = Enum.Font.GothamBlack
+    statusTitle.TextSize = 11
+    statusTitle.TextXAlignment = Enum.TextXAlignment.Left
+    statusTitle.ZIndex = 3
+    statusTitle.Parent = statusCard
+
+    local statusDetail = Instance.new("TextLabel")
+    statusDetail.Size = UDim2.new(1, -40, 0, 14)
+    statusDetail.Position = UDim2.new(0, 30, 0, 26)
+    statusDetail.BackgroundTransparency = 1
+    statusDetail.Text = "Prêt à démarrer"
+    statusDetail.TextColor3 = T.TEXT_DIM
+    statusDetail.Font = Enum.Font.Gotham
+    statusDetail.TextSize = 10
+    statusDetail.TextXAlignment = Enum.TextXAlignment.Left
+    statusDetail.ZIndex = 3
+    statusDetail.Parent = statusCard
+
+    -- ═══ PROGRESS ═══
+    local progressLabel = Instance.new("TextLabel")
+    progressLabel.Size = UDim2.new(1, -20, 0, 16)
+    progressLabel.Position = UDim2.new(0, 10, 0, 106)
+    progressLabel.BackgroundTransparency = 1
+    progressLabel.Text = "PROGRESSION"
+    progressLabel.TextColor3 = T.TEXT_DIM
+    progressLabel.Font = Enum.Font.GothamBlack
+    progressLabel.TextSize = 9
+    progressLabel.TextXAlignment = Enum.TextXAlignment.Left
+    progressLabel.ZIndex = 3
+    progressLabel.Parent = panel
+
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(1, -20, 0, 12)
+    progressBar.Position = UDim2.new(0, 10, 0, 126)
+    progressBar.BackgroundColor3 = T.CARD
+    progressBar.BorderSizePixel = 0
+    progressBar.ZIndex = 3
+    progressBar.Parent = panel
+    corner(progressBar, 999)
+
+    local progressFill = Instance.new("Frame")
+    progressFill.Size = UDim2.new(0, 0, 1, 0)
+    progressFill.BackgroundColor3 = T.WHITE
+    progressFill.BorderSizePixel = 0
+    progressFill.ZIndex = 4
+    progressFill.Parent = progressBar
+    corner(progressFill, 999)
+
+    local fillGrad = Instance.new("UIGradient")
+    fillGrad.Color = GRADIENT_SEQ
+    fillGrad.Rotation = 0
+    fillGrad.Parent = progressFill
+    registerGradient(fillGrad, 120)
+
+    local progressText = Instance.new("TextLabel")
+    progressText.Size = UDim2.new(1, -20, 0, 20)
+    progressText.Position = UDim2.new(0, 10, 0, 142)
+    progressText.BackgroundTransparency = 1
+    progressText.Text = "0 / " .. state.totalWaypoints .. " waypoints"
+    progressText.TextColor3 = T.TEXT
+    progressText.Font = Enum.Font.GothamBlack
+    progressText.TextSize = 11
+    progressText.TextXAlignment = Enum.TextXAlignment.Left
+    progressText.ZIndex = 3
+    progressText.Parent = panel
+
+    local timerText = Instance.new("TextLabel")
+    timerText.Size = UDim2.new(1, -20, 0, 20)
+    timerText.Position = UDim2.new(0, 10, 0, 142)
+    timerText.BackgroundTransparency = 1
+    timerText.Text = "0.0s"
+    timerText.TextColor3 = T.WHITE
+    timerText.Font = Enum.Font.GothamBlack
+    timerText.TextSize = 11
+    timerText.TextXAlignment = Enum.TextXAlignment.Right
+    timerText.ZIndex = 3
+    timerText.Parent = panel
+
+    -- ═══ SPEED SLIDER ═══
+    local speedLabel = Instance.new("TextLabel")
+    speedLabel.Name = "SpeedLabel"
+    speedLabel.Size = UDim2.new(1, -20, 0, 16)
+    speedLabel.Position = UDim2.new(0, 10, 0, 170)
+    speedLabel.BackgroundTransparency = 1
+    speedLabel.Text = "VITESSE : " .. MOVE_CONFIG.movementSpeed
+    speedLabel.TextColor3 = T.TEXT_DIM
+    speedLabel.Font = Enum.Font.GothamBlack
+    speedLabel.TextSize = 9
+    speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+    speedLabel.ZIndex = 3
+    speedLabel.Parent = panel
+
+    local speedBg = Instance.new("Frame")
+    speedBg.Size = UDim2.new(1, -20, 0, 8)
+    speedBg.Position = UDim2.new(0, 10, 0, 190)
+    speedBg.BackgroundColor3 = T.CARD
+    speedBg.BorderSizePixel = 0
+    speedBg.ZIndex = 3
+    speedBg.Parent = panel
+    corner(speedBg, 999)
+
+    local speedFill = Instance.new("Frame")
+    speedFill.Size = UDim2.new(MOVE_CONFIG.movementSpeed / 300, 0, 1, 0)
+    speedFill.BackgroundColor3 = T.WHITE
+    speedFill.BorderSizePixel = 0
+    speedFill.ZIndex = 4
+    speedFill.Parent = speedBg
+    corner(speedFill, 999)
+
+    local speedFillGrad = Instance.new("UIGradient")
+    speedFillGrad.Color = GRADIENT_SEQ
+    speedFillGrad.Rotation = 0
+    speedFillGrad.Parent = speedFill
+    registerGradient(speedFillGrad, 120)
+
+    local speedHit = Instance.new("TextButton")
+    speedHit.Size = UDim2.new(1, 0, 1, 0)
+    speedHit.BackgroundTransparency = 1
+    speedHit.Text = ""
+    speedHit.ZIndex = 5
+    speedHit.Parent = speedBg
+
+    local draggingSpeed = false
+    speedHit.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSpeed = true
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingSpeed and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local absPos = speedBg.AbsolutePosition
+            local absSize = speedBg.AbsoluteSize
+            local relX = math.clamp((input.Position.X - absPos.X) / absSize.X, 0, 1)
+            local newVal = math.floor(relX * 300)
+            MOVE_CONFIG.movementSpeed = math.max(newVal, 10)
+            speedFill.Size = UDim2.new(relX, 0, 1, 0)
+            speedLabel.Text = "VITESSE : " .. MOVE_CONFIG.movementSpeed
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            draggingSpeed = false
+        end
+    end)
+
+    -- ═══ BUTTONS ═══
+    local btnRow = Instance.new("Frame")
+    btnRow.Size = UDim2.new(1, -20, 0, 40)
+    btnRow.Position = UDim2.new(0, 10, 0, 210)
+    btnRow.BackgroundTransparency = 1
+    btnRow.ZIndex = 3
+    btnRow.Parent = panel
+
+    local startBtn = Instance.new("TextButton")
+    startBtn.Size = UDim2.new(0.5, -4, 1, 0)
+    startBtn.Position = UDim2.new(0, 0, 0, 0)
+    startBtn.BackgroundColor3 = T.WHITE
+    startBtn.BorderSizePixel = 0
+    startBtn.Text = "▶  DÉMARRER"
+    startBtn.TextColor3 = T.BLACK
+    startBtn.Font = Enum.Font.GothamBlack
+    startBtn.TextSize = 12
+    startBtn.AutoButtonColor = false
+    startBtn.ZIndex = 4
+    startBtn.Parent = btnRow
+    corner(startBtn, 10)
+    local startStroke, startStrokeGrad = strokeAnim(startBtn, 1.5, 0.1)
+
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(0.5, -4, 1, 0)
+    stopBtn.Position = UDim2.new(0.5, 4, 0, 0)
+    stopBtn.BackgroundColor3 = T.BG_DEEP
+    stopBtn.BorderSizePixel = 0
+    stopBtn.Text = "⏹  ARRÊTER"
+    stopBtn.TextColor3 = T.DANGER
+    stopBtn.Font = Enum.Font.GothamBlack
+    stopBtn.TextSize = 12
+    stopBtn.AutoButtonColor = false
+    stopBtn.ZIndex = 4
+    stopBtn.Parent = btnRow
+    corner(stopBtn, 10)
+    local stopStroke = Instance.new("UIStroke")
+    stopStroke.Color = T.DANGER
+    stopStroke.Thickness = 1.2
+    stopStroke.Transparency = 0.5
+    stopStroke.Parent = stopBtn
+
+    startBtn.MouseEnter:Connect(function()
+        TweenService:Create(startBtn, F, {BackgroundColor3 = Color3.fromRGB(220, 220, 220)}):Play()
+    end)
+    startBtn.MouseLeave:Connect(function()
+        TweenService:Create(startBtn, F, {BackgroundColor3 = T.WHITE}):Play()
+    end)
+    stopBtn.MouseEnter:Connect(function()
+        TweenService:Create(stopBtn, F, {BackgroundColor3 = T.CARD_HOV}):Play()
+        TweenService:Create(stopStroke, F, {Transparency = 0}):Play()
+    end)
+    stopBtn.MouseLeave:Connect(function()
+        TweenService:Create(stopBtn, F, {BackgroundColor3 = T.BG_DEEP}):Play()
+        TweenService:Create(stopStroke, F, {Transparency = 0.5}):Play()
+    end)
+
+    -- ═══ DRAG ═══
+    local dragging, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = panel.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            panel.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    -- ═══ HIDE/EXPAND ═══
+    local uiVisible = true
+    hideBtn.MouseButton1Click:Connect(function()
+        uiVisible = not uiVisible
+        if uiVisible then
+            hideBtn.Text = "−"
+            TweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 280, 0, 260)
+            }):Play()
+        else
+            hideBtn.Text = "+"
+            TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 280, 0, 38)
+            }):Play()
+        end
+    end)
+
+    -- Animation entrée
+    task.spawn(function()
+        task.wait(1.4)
+        TweenService:Create(panel, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(1, -295, 0.5, -130)
+        }):Play()
+    end)
+
+    return screenGui, panel, startBtn, stopBtn, statusDot, statusTitle, statusDetail, progressFill, progressText, timerText
+end
+
+-- ═══════════════════════════════════════════════
+-- 🚶 MOUVEMENT
+-- ═══════════════════════════════════════════════
+local gui, panel, startBtn, stopBtn, statusDot, statusTitle, statusDetail, progressFill, progressText, timerText = createUI()
+
+local function setStatus(title, detail, color)
+    statusTitle.Text = title
+    statusDetail.Text = detail
+    statusDot.BackgroundColor3 = color or T.OFF
+end
+
+local function updateProgress(current, total)
+    local frac = total > 0 and (current / total) or 0
+    TweenService:Create(progressFill, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(frac, 0, 1, 0)
+    }):Play()
+    progressText.Text = current .. " / " .. total .. " waypoints"
+end
+
+local function tweenTo(rootPart, targetPos, speed)
+    local distance = (rootPart.Position - targetPos).Magnitude
+    local duration = distance / speed
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = CFrame.new(targetPos)})
+    tween:Play()
+    tween.Completed:Wait()
+    return tween
+end
+
+local function executeMovement()
+    if state.running then return end
+    state.running = true
+    state.stopRequested = false
+    state.currentWaypoint = 0
+
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoid or not rootPart then
+        warn("Movement Script: No humanoid or root part found!")
+        state.running = false
+        return
+    end
+
+    setStatus("EN COURS", "Démarrage...", T.WHITE)
+    showNotif(gui, "Movement", "Parcours démarré", "success")
+
+    for i, waypoint in ipairs(MOVE_CONFIG.waypoints) do
+        if state.stopRequested then
+            setStatus("ARRÊTÉ", "Interrompu par l'utilisateur", T.DANGER)
+            showNotif(gui, "Movement", "Parcours arrêté", "error")
+            state.running = false
+            return
+        end
+
+        state.currentWaypoint = i
+        updateProgress(i - 1, state.totalWaypoints)
+        setStatus("WAYPOINT " .. i .. "/" .. state.totalWaypoints, "En déplacement...", T.WHITE)
+
+        -- Timer
+        local startT = tick()
+        local timerConn = RunService.Heartbeat:Connect(function()
+            if not state.running then return end
+            local elapsed = tick() - startT
+            timerText.Text = string.format("%.1fs", elapsed)
+        end)
+
+        -- Move to waypoint
+        tweenTo(rootPart, waypoint, MOVE_CONFIG.movementSpeed)
+
+        -- Extra point after waypoint 1
+        if i == 1 and not state.stopRequested then
+            tweenTo(rootPart, MOVE_CONFIG.extraPointAfter1, MOVE_CONFIG.movementSpeed)
+            task.wait(3)
+        end
+
+        -- Sit at waypoint 2
+        if i == 2 and not state.stopRequested then
+            humanoid.Sit = true
+            setStatus("ASSIS", "Attente de 40s...", T.WARN)
+            for sec = 40, 0, -1 do
+                if state.stopRequested then break end
+                setStatus("ASSIS", "Attente : " .. sec .. "s", T.WARN)
+                task.wait(1)
+            end
+            humanoid.Sit = false
+        end
+
+        task.wait(0.1)
+        timerConn:Disconnect()
+    end
+
+    updateProgress(state.totalWaypoints, state.totalWaypoints)
+
+    if state.stopRequested then
+        setStatus("ARRÊTÉ", "Interrompu", T.DANGER)
+        showNotif(gui, "Movement", "Parcours arrêté", "error")
+    else
+        setStatus("TERMINÉ", "Parcours complet ✓", T.SUCCESS)
+        showNotif(gui, "Movement", "Parcours terminé !", "success")
+        print("you won")
+    end
+
+    state.running = false
+end
+
+startBtn.MouseButton1Click:Connect(function()
+    if state.running then
+        showNotif(gui, "Movement", "Déjà en cours", "warn")
+        return
+    end
+    task.spawn(executeMovement)
+end)
+
+stopBtn.MouseButton1Click:Connect(function()
+    if not state.running then
+        showNotif(gui, "Movement", "Aucun parcours actif", "warn")
+        return
+    end
+    state.stopRequested = true
+    showNotif(gui, "Movement", "Arrêt demandé...", "warn")
+end)
+
+print("[Movement Script] ✅ UI chargée !")
