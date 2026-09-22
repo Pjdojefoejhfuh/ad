@@ -1,0 +1,313 @@
+-- AP GIFT
+-- made open source at discord.gg/vonhub
+-- Thème: Noir & Blanc (Skibidi UI)
+
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService       = game:GetService("HttpService")
+local UserInputService  = game:GetService("UserInputService")
+local localPlayer       = Players.LocalPlayer
+local playerGui         = localPlayer:WaitForChild("PlayerGui")
+
+-------------------------------------------------
+-- 0. LOAD SKIBIDI UI
+-------------------------------------------------
+
+local Skibidi = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/Pjdojefoejhfuh/ad/refs/heads/main/zz", true
+))()
+
+Skibidi.SetTheme("mono")
+
+-------------------------------------------------
+-- 1. CONFIG
+-------------------------------------------------
+
+local APGiftConfig = {
+	enabled     = false,
+	robuxAmount = 7499,
+	autoTarget  = true,
+	savedTarget = "",
+}
+
+local CONFIG_FILE = "APGift_Config.json"
+
+local function saveAPGiftConfig()
+	pcall(function()
+		if writefile then
+			writefile(CONFIG_FILE, HttpService:JSONEncode(APGiftConfig))
+		end
+	end)
+end
+
+local function loadAPGiftConfig()
+	pcall(function()
+		if isfile and isfile(CONFIG_FILE) then
+			local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
+			if type(data) == "table" then
+				for k, v in pairs(data) do
+					if APGiftConfig[k] ~= nil then
+						APGiftConfig[k] = v
+					end
+				end
+			end
+		end
+	end)
+end
+
+loadAPGiftConfig()
+
+-------------------------------------------------
+-- 2. PANEL — PLUS PETIT
+-------------------------------------------------
+
+local panel = Skibidi.CreatePanel({
+	Name     = "APGiftGui",
+	Title    = "AP GIFT",
+	SubTitle = "b&w",
+	Icon     = "gift",
+	Width    = 280,
+	Height   = 240,
+	Tabs     = {
+		{ Name = "Main",   Icon = "gift"      },
+		{ Name = "Target", Icon = "crosshair" },
+	},
+	DefaultTab = 1,
+})
+
+local tabMain   = panel.GetTab(1)
+local tabTarget = panel.GetTab(2)
+
+-------------------------------------------------
+-- 3. HELPERS
+-------------------------------------------------
+
+local function findNearestPlayer()
+	local char = localPlayer.Character
+	if not char then return nil end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return nil end
+
+	local nearest, nearestDist = nil, math.huge
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= localPlayer then
+			local pchar = plr.Character
+			if pchar then
+				local phrp = pchar:FindFirstChild("HumanoidRootPart")
+				if phrp then
+					local d = (phrp.Position - hrp.Position).Magnitude
+					if d < nearestDist then
+						nearestDist = d
+						nearest     = plr
+					end
+				end
+			end
+		end
+	end
+	return nearest
+end
+
+local function getTarget()
+	if APGiftConfig.autoTarget then
+		return findNearestPlayer()
+	end
+	if APGiftConfig.savedTarget and APGiftConfig.savedTarget ~= "" then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if string.lower(plr.Name) == string.lower(APGiftConfig.savedTarget)
+			or string.lower(plr.DisplayName) == string.lower(APGiftConfig.savedTarget) then
+				return plr
+			end
+		end
+	end
+	return nil
+end
+
+-------------------------------------------------
+-- 4. TAB 1 — MAIN
+-------------------------------------------------
+
+Skibidi.CreateSection(tabMain, { Title = "AP Gift", Open = true })
+
+local statusLbl = Skibidi.CreateLabel(tabMain, {
+	Text  = APGiftConfig.enabled and "● ON" or "○ OFF",
+	Color = APGiftConfig.enabled and Color3.fromRGB(200, 200, 200) or Color3.fromRGB(120, 120, 120),
+	Icon  = "gift",
+})
+
+-- Toggle ON / OFF
+Skibidi.CreateToggle(tabMain, {
+	Label   = "Enabled",
+	Default = APGiftConfig.enabled,
+	Icon    = "power",
+	OnChanged = function(state)
+		APGiftConfig.enabled = state
+		pcall(function()
+			if statusLbl and statusLbl.SetText then
+				statusLbl.SetText(state and "● ON" or "○ OFF")
+			end
+			if statusLbl and statusLbl.SetColor then
+				statusLbl.SetColor(state and Color3.fromRGB(200, 200, 200) or Color3.fromRGB(120, 120, 120))
+			end
+		end)
+		saveAPGiftConfig()
+
+		if state then
+			local ok = pcall(function()
+				loadstring(game:HttpGet(
+					"https://raw.githubusercontent.com/blookzz/von/refs/heads/main/visual_ap.lua"
+				))()
+			end)
+			print(ok and "[AP Gift] Script chargé" or "[AP Gift] Erreur de chargement")
+		else
+			print("[AP Gift] Désactivé")
+		end
+	end,
+})
+
+-- ─────────────────────────────────────────────
+-- INPUT ROBUX — capture au focus perdu / Entrée
+-- ─────────────────────────────────────────────
+
+local robuxInput = Skibidi.CreateTextInput(tabMain, {
+	Label       = "Robux",
+	Placeholder = "ex: 7499",
+	Default     = tostring(APGiftConfig.robuxAmount),
+	Icon        = "coins",
+})
+
+-- Fonction pour appliquer la valeur du TextBox
+local function applyRobuxFromBox()
+	local box = nil
+	if robuxInput then
+		box = robuxInput.TextBox or robuxInput.Frame or robuxInput
+		-- essaie plusieurs noms possibles
+		if robuxInput.TextBox then box = robuxInput.TextBox
+		elseif robuxInput.Frame and robuxInput.Frame:FindFirstChildOfClass("TextBox") then
+			box = robuxInput.Frame:FindFirstChildOfClass("TextBox")
+		elseif robuxInput.Frame then
+			box = robuxInput.Frame:FindFirstChildWhichIsA("TextBox", true)
+		end
+	end
+	if not box or not box:IsA("TextBox") then return end
+
+	local num = tonumber((box.Text or ""):gsub("[^%d]", ""))
+	if num and num > 0 then
+		APGiftConfig.robuxAmount = math.floor(num)
+		saveAPGiftConfig()
+		print("[AP Gift] Robux = " .. APGiftConfig.robuxAmount)
+	end
+end
+
+-- Hook sur le TextBox dès qu'il est dispo
+task.spawn(function()
+	task.wait(0.5)
+	local box = nil
+	if robuxInput then
+		if robuxInput.TextBox then box = robuxInput.TextBox
+		elseif robuxInput.Frame then
+			box = robuxInput.Frame:FindFirstChildWhichIsA("TextBox", true)
+		end
+	end
+	if box and box:IsA("TextBox") then
+		-- Capture à chaque changement de texte
+		box:GetPropertyChangedSignal("Text"):Connect(function()
+			local num = tonumber((box.Text or ""):gsub("[^%d]", ""))
+			if num and num > 0 then
+				APGiftConfig.robuxAmount = math.floor(num)
+			end
+		end)
+		-- Capture à la perte de focus
+		box.FocusLost:Connect(function(enterPressed)
+			applyRobuxFromBox()
+		end)
+		-- Capture Entrée
+		box:GetPropertyChangedSignal("Text"):Connect(function() end)
+		UserInputService.InputBegan:Connect(function(input, gpe)
+			if gpe then return end
+			if input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter then
+				if box:IsFocused() then
+					applyRobuxFromBox()
+				end
+			end
+		end)
+	end
+end)
+
+-------------------------------------------------
+-- 5. TAB 2 — TARGET
+-------------------------------------------------
+
+Skibidi.CreateSection(tabTarget, { Title = "Target", Open = true })
+
+Skibidi.CreateToggle(tabTarget, {
+	Label   = "Auto target",
+	Default = APGiftConfig.autoTarget,
+	Icon    = "crosshair",
+	OnChanged = function(state)
+		APGiftConfig.autoTarget = state
+		saveAPGiftConfig()
+	end,
+})
+
+Skibidi.CreateTextInput(tabTarget, {
+	Label       = "Joueur",
+	Placeholder = "vide = auto",
+	Default     = APGiftConfig.savedTarget or "",
+	Icon        = "user",
+	OnChanged   = function(text)
+		APGiftConfig.savedTarget = (text or "")
+		saveAPGiftConfig()
+	end,
+})
+
+Skibidi.CreateButton(tabTarget, {
+	Text    = "🎯  Trouver",
+	Icon    = "target",
+	OnClick = function()
+		local target = getTarget()
+		if target then
+			print("[AP Gift] Cible : " .. target.Name)
+		else
+			print("[AP Gift] Aucune cible")
+		end
+	end,
+})
+
+-------------------------------------------------
+-- 6. ACTIONS
+-------------------------------------------------
+
+Skibidi.CreateSection(tabMain, { Title = "Actions", Open = true })
+
+Skibidi.CreateButton(tabMain, {
+	Text    = "💾  Save",
+	Icon    = "save",
+	OnClick = function()
+		-- Récupère la valeur actuelle du TextBox avant de save
+		applyRobuxFromBox()
+		saveAPGiftConfig()
+		print("[AP Gift] Config sauvegardée — Robux = " .. APGiftConfig.robuxAmount)
+	end,
+})
+
+Skibidi.CreateButton(tabMain, {
+	Text    = "⚠  Unload",
+	Icon    = "power-off",
+	Color   = Color3.fromRGB(80, 20, 20),
+	OnClick = function()
+		APGiftConfig.enabled = false
+		saveAPGiftConfig()
+
+		pcall(function()
+			local gui = playerGui:FindFirstChild("APGiftGui")
+			if gui then gui:Destroy() end
+		end)
+		pcall(function()
+			local cg = game:GetService("CoreGui")
+			local gui = cg:FindFirstChild("APGiftGui")
+			if gui then gui:Destroy() end
+		end)
+
+		print("🖤 AP GIFT — Unloaded.")
+	end,
+})
