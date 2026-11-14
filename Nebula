@@ -1,0 +1,69 @@
+-- ==========================================
+-- AUTO-QUEUE ON TELEPORT
+-- ==========================================
+-- Colle ton URL ci-dessous (raw github, pastebin, etc.)
+local SCRIPT_URL = "https://raw.githubusercontent.com/tonnom/tonrepo/main/script.lua"
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local TeleportService = game:GetService("TeleportService")
+
+-- Fonction pour régénérer le loader (pour qu'il se réinjecte tout seul)
+local function getLoaderCode()
+    return string.format([[
+        task.spawn(function()
+            repeat task.wait(0.5) until game:IsLoaded()
+            local Players = game:GetService("Players")
+            local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+            repeat task.wait(0.5) until lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            task.wait(1.5)
+            local url = "%s"
+            local success, err = pcall(function()
+                loadstring(game:HttpGet(url))()
+            end)
+            if not success then
+                warn("[AutoQueue] Failed to load: " .. tostring(err))
+            end
+        end)
+    ]], SCRIPT_URL)
+end
+
+-- Fonction pour envoyer le code dans la file d'attente (selon l'exécuteur)
+local function queueScript()
+    local code = getLoaderCode()
+    
+    if queue_on_teleport then
+        pcall(queue_on_teleport, code)
+    elseif syn and syn.queue_on_teleport then
+        pcall(syn.queue_on_teleport, code)
+    elseif fluxus and fluxus.queue_on_teleport then
+        pcall(fluxus.queue_on_teleport, code)
+    elseif secure_call and queue_on_teleport then
+        pcall(secure_call, queue_on_teleport, code)
+    else
+        warn("[AutoQueue] Ton exécuteur ne supporte pas queue_on_teleport.")
+    end
+end
+
+-- 1. On queue le script immédiatement au chargement
+queueScript()
+
+-- 2. On hook l'événement de téléportation du joueur
+LocalPlayer.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Started or state == Enum.TeleportState.InProgress then
+        queueScript()
+    end
+end)
+
+-- 3. Sécurité : on re-queue toutes les 10 secondes pour être sûr
+task.spawn(function()
+    while true do
+        task.wait(10)
+        if queue_on_teleport then
+            queueScript()
+        end
+    end
+end)
+
+print("[AutoQueue] Loaded. Script will auto-execute on teleport.")
+print("[AutoQueue] Target URL: " .. SCRIPT_URL)
