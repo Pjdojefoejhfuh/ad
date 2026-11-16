@@ -1,8 +1,271 @@
 -- Hello from @0x1Ez
 
+-- ==========================================
+-- AUTO-LOAD + REJOIN SERVER (Kicia UI Style)
+-- ==========================================
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+local Tweens = game:GetService("TweenService")
 
+local CUSTOM_URL = "https://raw.githubusercontent.com/Pjdojefoejhfuh/ad/refs/heads/main/UE.LUA"
+local CONFIG_FILE = "AutoLoadEnabled.txt"
+local JOBID_FILE = "LastServerJobId.txt"
 
-local existingBase64Decode = base64_decode
+-- ÉTAT AUTO-LOAD
+local isEnabled = false
+if isfile and isfile(CONFIG_FILE) then
+    if readfile(CONFIG_FILE) == "true" then isEnabled = true end
+end
+
+local function saveState()
+    if writefile then writefile(CONFIG_FILE, tostring(isEnabled)) end
+end
+
+-- ÉTAT JOBID
+local lastJobId = nil
+if isfile and isfile(JOBID_FILE) then
+    local jid = readfile(JOBID_FILE)
+    if jid and #jid > 0 then lastJobId = jid end
+end
+
+-- Sauvegarde le JobId actuel (si on est dans un serveur)
+if game.JobId and #game.JobId > 0 then
+    lastJobId = game.JobId
+    if writefile then writefile(JOBID_FILE, lastJobId) end
+end
+
+-- Code pour l'Auto Load
+local function getLoaderCode()
+    return string.format([[
+        task.spawn(function()
+            repeat task.wait(0.5) until game:IsLoaded()
+            local Players = game:GetService("Players")
+            local lp = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+            repeat task.wait(0.5) until lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            task.wait(1.5)
+            local url = "%s"
+            local success, err = pcall(function()
+                loadstring(game:HttpGet(url))()
+            end)
+            if not success then
+                warn("[AutoLoad] Failed to load: " .. tostring(err))
+            end
+        end)
+    ]], CUSTOM_URL)
+end
+
+local function queueScript()
+    if not isEnabled then return end
+    local code = getLoaderCode()
+    if queue_on_teleport then pcall(queue_on_teleport, code)
+    elseif syn and syn.queue_on_teleport then pcall(syn.queue_on_teleport, code)
+    elseif fluxus and fluxus.queue_on_teleport then pcall(fluxus.queue_on_teleport, code) end
+end
+
+-- ==========================================
+-- KICIA THEME TOKENS
+-- ==========================================
+local T = {
+    Background = Color3.fromRGB(12, 12, 12),
+    GradientTop = Color3.fromRGB(24, 24, 24),
+    GradientBottom = Color3.fromRGB(8, 8, 8),
+    Accent = Color3.fromRGB(197, 59, 59),
+    AccentGlow = Color3.fromRGB(255, 100, 100),
+    Text = Color3.fromRGB(230, 230, 230),
+    TextDim = Color3.fromRGB(160, 160, 160),
+    Outline = Color3.fromRGB(45, 45, 45),
+    FontBold = Enum.Font.GothamBold
+}
+
+-- ==========================================
+-- UI
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KiciaAutoLoadUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = gethui and gethui() or LocalPlayer:WaitForChild("PlayerGui")
+
+-- Fonction pour créer un bouton (évite de dupliquer le code)
+local function createButton(text, yPos)
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.fromOffset(120, 32)
+    Container.Position = UDim2.new(1, -132, 0, yPos)
+    Container.BackgroundColor3 = T.Background
+    Container.BorderSizePixel = 0
+    Container.Parent = ScreenGui
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 6)
+    UICorner.Parent = Container
+
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = T.Outline
+    UIStroke.Thickness = 1
+    UIStroke.Transparency = 0.2
+    UIStroke.Parent = Container
+
+    local UIGradient = Instance.new("UIGradient")
+    UIGradient.Rotation = 90
+    UIGradient.Color = ColorSequence.new(T.GradientTop, T.GradientBottom)
+    UIGradient.Parent = Container
+
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.fromScale(1, 1)
+    Button.BackgroundTransparency = 1
+    Button.Text = ""
+    Button.AutoButtonColor = false
+    Button.Parent = Container
+
+    local Dot = Instance.new("Frame")
+    Dot.Size = UDim2.fromOffset(8, 8)
+    Dot.Position = UDim2.new(0, 12, 0.5, -4)
+    Dot.BackgroundColor3 = T.TextDim
+    Dot.BorderSizePixel = 0
+    Dot.Parent = Container
+
+    local DotCorner = Instance.new("UICorner")
+    DotCorner.CornerRadius = UDim.new(1, 0)
+    DotCorner.Parent = Dot
+
+    local DotStroke = Instance.new("UIStroke")
+    DotStroke.Color = T.Outline
+    DotStroke.Thickness = 1
+    DotStroke.Transparency = 0.5
+    DotStroke.Parent = Dot
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -30, 1, 0)
+    Label.Position = UDim2.fromOffset(26, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.Font = T.FontBold
+    Label.TextSize = 11
+    Label.TextColor3 = T.TextDim
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Container
+
+    return Button, Label, Dot, DotStroke, UIStroke
+end
+
+-- Créer le bouton AUTO LOAD (en haut)
+local AlBtn, AlLabel, AlDot, AlDotStroke, AlStroke = createButton("AUTO LOAD", 15)
+
+-- Créer le bouton REJOIN (en dessous)
+local RjBtn, RjLabel, RjDot, RjDotStroke, RjStroke = createButton("REJOIN SERVER", 55)
+
+-- ==========================================
+-- LOGIQUE AUTO-LOAD
+-- ==========================================
+local function updateAlUI()
+    local targetColor = isEnabled and T.Accent or T.Outline
+    local targetTextColor = isEnabled and T.Text or T.TextDim
+
+    Tweens:Create(AlStroke, TweenInfo.new(0.2), {Color = targetColor}):Play()
+    Tweens:Create(AlLabel, TweenInfo.new(0.2), {TextColor3 = targetTextColor}):Play()
+    Tweens:Create(AlDot, TweenInfo.new(0.2), {BackgroundColor3 = isEnabled and T.Accent or T.TextDim}):Play()
+    Tweens:Create(AlDotStroke, TweenInfo.new(0.2), {Color = isEnabled and T.AccentGlow or T.Outline}):Play()
+end
+
+AlBtn.MouseButton1Click:Connect(function()
+    isEnabled = not isEnabled
+    saveState()
+    updateAlUI()
+    if isEnabled then
+        queueScript()
+        print("[AutoLoad] Enabled")
+    else
+        print("[AutoLoad] Disabled")
+    end
+end)
+
+-- Hover effect
+AlBtn.MouseEnter:Connect(function()
+    Tweens:Create(AlStroke, TweenInfo.new(0.15), {Transparency = 0}):Play()
+    Tweens:Create(AlLabel, TweenInfo.new(0.15), {TextColor3 = Color3.new(1,1,1)}):Play()
+end)
+AlBtn.MouseLeave:Connect(function()
+    Tweens:Create(AlStroke, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
+    Tweens:Create(AlLabel, TweenInfo.new(0.15), {TextColor3 = isEnabled and T.Text or T.TextDim}):Play()
+end)
+
+-- ==========================================
+-- LOGIQUE REJOIN SERVER
+-- ==========================================
+local isRejoining = false
+
+RjBtn.MouseButton1Click:Connect(function()
+    if isRejoining then return end
+    isRejoining = true
+    
+    if not lastJobId or #lastJobId == 0 then
+        RjLabel.Text = "NO SERVER SAVED"
+        Tweens:Create(RjLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 100, 100)}):Play()
+        task.wait(2)
+        RjLabel.Text = "REJOIN SERVER"
+        Tweens:Create(RjLabel, TweenInfo.new(0.2), {TextColor3 = T.TextDim}):Play()
+        isRejoining = false
+        return
+    end
+    
+    -- Feedback visuel
+    RjLabel.Text = "REJOINING..."
+    Tweens:Create(RjLabel, TweenInfo.new(0.2), {TextColor3 = T.Accent}):Play()
+    print("[Rejoin] Teleporting to server: " .. lastJobId)
+    
+    -- Téléportation
+    task.spawn(function()
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, lastJobId, LocalPlayer)
+        end)
+        if not success then
+            warn("[Rejoin] Failed: " .. tostring(err))
+            RjLabel.Text = "FAILED (PRIVATE?)"
+            Tweens:Create(RjLabel, TweenInfo.new(0.2), {TextColor3 = Color3.fromRGB(255, 100, 100)}):Play()
+            task.wait(2)
+            RjLabel.Text = "REJOIN SERVER"
+            Tweens:Create(RjLabel, TweenInfo.new(0.2), {TextColor3 = T.TextDim}):Play()
+        end
+        isRejoining = false
+    end)
+end)
+
+RjBtn.MouseEnter:Connect(function()
+    Tweens:Create(RjStroke, TweenInfo.new(0.15), {Transparency = 0}):Play()
+    Tweens:Create(RjLabel, TweenInfo.new(0.15), {TextColor3 = Color3.new(1,1,1)}):Play()
+end)
+RjBtn.MouseLeave:Connect(function()
+    Tweens:Create(RjStroke, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
+    Tweens:Create(RjLabel, TweenInfo.new(0.15), {TextColor3 = T.TextDim}):Play()
+end)
+
+-- ==========================================
+-- INIT
+-- ==========================================
+updateAlUI()
+
+-- Si activé au chargement, queue immédiatement (pour le rejoin)
+if isEnabled then
+    queueScript()
+end
+
+-- Teleport hook
+LocalPlayer.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Started or state == Enum.TeleportState.InProgress then
+        if isEnabled then queueScript() end
+    end
+end)
+
+-- Boucle de sécurité
+task.spawn(function()
+    while true do
+        task.wait(10)
+        if isEnabled then queueScript() end
+    end
+end)
+
+print("[AutoLoad/Rejoin] Buttons initialized (Kicia Style)")
 
 local function fallbackBase64Decode(encoded)
     local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
